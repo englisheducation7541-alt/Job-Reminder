@@ -91,6 +91,7 @@ export const ClientPaymentReminderModal: React.FC = () => {
   // Attached Documents System
   const [documents, setDocuments] = useState<PaymentDocumentAttachment[]>([]);
   const [previewDocument, setPreviewDocument] = useState<PaymentDocumentAttachment | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Channel Tabs: WhatsApp, Email, or Documents
@@ -327,20 +328,27 @@ export const ClientPaymentReminderModal: React.FC = () => {
     setTimeout(() => setIsCopied(false), 2000);
   };
 
-  // File Upload Handler (PDF, Image, Document)
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
+  // Process files from input or dropzone
+  const processFiles = (files: FileList | File[]) => {
     if (!files || files.length === 0) return;
 
-    Array.from(files).forEach((file: File) => {
+    const fileList = Array.from(files);
+    fileList.forEach((file: File) => {
+      if (file.size > 25 * 1024 * 1024) {
+        alert(`File "${file.name}" exceeds 25MB limit.`);
+        return;
+      }
+
       const reader = new FileReader();
       reader.onload = (event) => {
         const dataUrl = event.target?.result as string;
+        if (!dataUrl) return;
+
         const extension = file.name.split('.').pop()?.toLowerCase() || '';
         let fileType: PaymentDocumentAttachment['fileType'] = 'other';
         if (['pdf'].includes(extension)) fileType = 'pdf';
-        else if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg'].includes(extension)) fileType = 'image';
-        else if (['doc', 'docx', 'txt', 'rtf', 'odt', 'xls', 'xlsx'].includes(extension)) fileType = 'document';
+        else if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg', 'bmp'].includes(extension)) fileType = 'image';
+        else if (['doc', 'docx', 'txt', 'rtf', 'odt', 'xls', 'xlsx', 'csv'].includes(extension)) fileType = 'document';
 
         const formatSize = (bytes: number) => {
           if (bytes < 1024) return bytes + ' B';
@@ -357,15 +365,101 @@ export const ClientPaymentReminderModal: React.FC = () => {
           uploadedAt: new Date().toISOString(),
         };
 
-        setDocuments((prev) => [...prev, newDoc]);
-        setSaveSuccessMsg(`Added document: ${file.name}. Click "Save Reminder" to store permanently.`);
+        setDocuments((prev) => {
+          const filtered = prev.filter((d) => d.name !== newDoc.name);
+          const nextDocs = [...filtered, newDoc];
+          if (savedReminderId) {
+            updatePaymentReminder(savedReminderId, { documents: nextDocs });
+          }
+          return nextDocs;
+        });
+
+        setSaveSuccessMsg(`Attached document: "${file.name}" (दस्तावेज़ जुड़ गया). Click "Save Reminder" to store permanently.`);
+        setTimeout(() => setSaveSuccessMsg(null), 5000);
       };
+
+      reader.onerror = () => {
+        alert(`Failed to read file "${file.name}". Please try another file.`);
+      };
+
       reader.readAsDataURL(file);
     });
+  };
 
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+  // Robust File Upload Handler (works on desktop, mobile & iframes)
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (fileList && fileList.length > 0) {
+      const filesArray = Array.from(fileList);
+      processFiles(filesArray);
     }
+    // Delay clearing value so browser read is not interrupted
+    setTimeout(() => {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }, 400);
+  };
+
+  // Attach a ready-made sample invoice with 1 click
+  const handleAttachSampleInvoice = () => {
+    const invNo = invoiceNumber.trim() || 'INV-2026-0101';
+    const cName = customerName.trim() || 'Valued Client';
+    const dateStr = dueDate || new Date().toISOString().split('T')[0];
+    const dueAmt = pendingAmount || amount || 25000;
+    
+    const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="700" height="900" viewBox="0 0 700 900">
+      <rect width="700" height="900" fill="#ffffff"/>
+      <rect x="0" y="0" width="700" height="12" fill="#059669"/>
+      <rect x="35" y="35" width="630" height="80" rx="10" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1.5"/>
+      <text x="55" y="70" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#065f46">${companySettings.companyName || 'SERVICE &amp; MAINTENANCE PRO'}</text>
+      <text x="55" y="95" font-family="Arial, sans-serif" font-size="12" fill="#047857">Official Tax Invoice • Payment Due Summary</text>
+      <text x="470" y="70" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#1f2937">INVOICE: #${invNo}</text>
+      <text x="470" y="95" font-family="Arial, sans-serif" font-size="12" fill="#4b5563">Date: ${dateStr}</text>
+      <rect x="35" y="135" width="630" height="80" rx="8" fill="#f9fafb" stroke="#e5e7eb"/>
+      <text x="55" y="165" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#6b7280">BILLED TO:</text>
+      <text x="55" y="190" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#111827">${cName}</text>
+      <text x="380" y="165" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#6b7280">CONTACT:</text>
+      <text x="380" y="190" font-family="Arial, sans-serif" font-size="12" fill="#374151">${contactPerson || 'Accounts Dept'} • ${contactMobile || 'N/A'}</text>
+      <rect x="35" y="235" width="630" height="35" fill="#059669"/>
+      <text x="55" y="258" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#ffffff">DESCRIPTION / SERVICE DETAILS</text>
+      <text x="520" y="258" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#ffffff">AMOUNT (INR)</text>
+      <rect x="35" y="270" width="630" height="50" fill="#ffffff" stroke="#e5e7eb"/>
+      <text x="55" y="300" font-family="Arial, sans-serif" font-size="12" fill="#1f2937">Commercial Job &amp; Service Maintenance Charges (${invNo})</text>
+      <text x="520" y="300" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#111827">₹${amount.toLocaleString('en-IN')}</text>
+      <rect x="35" y="340" width="630" height="110" rx="8" fill="#f0fdf4" stroke="#86efac"/>
+      <text x="55" y="370" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#065f46">PAYMENT SUMMARY</text>
+      <text x="55" y="400" font-family="Arial, sans-serif" font-size="12" fill="#374151">Total Bill: ₹${amount.toLocaleString('en-IN')}  |  Paid: ₹${paidAmount.toLocaleString('en-IN')}</text>
+      <text x="55" y="430" font-family="Arial, sans-serif" font-size="15" font-weight="bold" fill="#dc2626">BALANCE DUE: ₹${dueAmt.toLocaleString('en-IN')}</text>
+      <text x="440" y="430" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#047857">Due Date: ${dateStr}</text>
+      <rect x="35" y="470" width="630" height="100" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+      <text x="55" y="500" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#1e293b">BANK REMITTANCE DETAILS:</text>
+      <text x="55" y="525" font-family="Arial, sans-serif" font-size="12" fill="#334155">Bank: ${companySettings.bankName || 'HDFC Bank'}  |  A/C: ${companySettings.bankAccountNumber || '50200012345678'}</text>
+      <text x="55" y="550" font-family="Arial, sans-serif" font-size="12" fill="#334155">IFSC: ${companySettings.bankIfsc || 'HDFC0001234'}  |  UPI: ${companySettings.upiId || 'company@upi'}</text>
+      <text x="350" y="860" font-family="Arial, sans-serif" font-size="11" fill="#9ca3af" text-anchor="middle">This is a computer generated invoice document. For queries, contact ${companySettings.phone || ''}.</text>
+    </svg>`;
+
+    const dataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgContent)}`;
+    const sampleDoc: PaymentDocumentAttachment = {
+      id: `doc_sample_${Date.now()}`,
+      name: `${invNo}_Invoice_Copy.svg`,
+      fileType: 'document',
+      dataUrl,
+      size: '12 KB',
+      uploadedAt: new Date().toISOString(),
+    };
+
+    setDocuments((prev) => {
+      const filtered = prev.filter((d) => d.name !== sampleDoc.name);
+      const nextDocs = [...filtered, sampleDoc];
+      if (savedReminderId) {
+        updatePaymentReminder(savedReminderId, { documents: nextDocs });
+      }
+      return nextDocs;
+    });
+
+    setSaveSuccessMsg(`Attached sample invoice document: "${sampleDoc.name}". Click "Save Reminder" to store.`);
+    setTimeout(() => setSaveSuccessMsg(null), 5000);
   };
 
   // Remove document
@@ -876,6 +970,17 @@ export const ClientPaymentReminderModal: React.FC = () => {
               </div>
             </div>
 
+            {/* Dedicated Hidden File Input triggered programmatically by ref */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="application/pdf,image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,*/*"
+              onChange={handleFileUpload}
+              style={{ display: 'none' }}
+              tabIndex={-1}
+            />
+
             {/* DOCUMENT ATTACHMENT SECTION (Core User Request) */}
             <div className="bg-stone-50 border border-stone-200 rounded-xl p-3.5 space-y-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
@@ -889,7 +994,7 @@ export const ClientPaymentReminderModal: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   {currentJob && (
                     <button
                       type="button"
@@ -904,41 +1009,80 @@ export const ClientPaymentReminderModal: React.FC = () => {
 
                   <button
                     type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                    onClick={handleAttachSampleInvoice}
+                    className="px-2 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                    title="Generate a sample bill copy"
                   >
-                    <Plus className="w-3 h-3" />
+                    <Sparkles className="w-3 h-3 text-teal-600" />
+                    <span>Attach Sample Bill</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
                     <span>Upload Document / Bill</span>
                   </button>
                 </div>
               </div>
 
-              {/* Hidden File Input */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx,.txt"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-
-              {/* Document List */}
+              {/* Document List & Dropzone */}
               {documents.length === 0 ? (
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-stone-300 hover:border-emerald-500 rounded-xl p-3 text-center cursor-pointer bg-white transition-colors"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDragging(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDragging(false);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDragging(false);
+                    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                      processFiles(e.dataTransfer.files);
+                    }
+                  }}
+                  className={`block border-2 border-dashed ${
+                    isDragging ? 'border-emerald-600 bg-emerald-50' : 'border-stone-300 hover:border-emerald-500 bg-white'
+                  } rounded-xl p-4 text-center cursor-pointer transition-colors relative`}
+                  role="button"
+                  tabIndex={0}
                 >
-                  <Upload className="w-5 h-5 text-stone-400 mx-auto mb-1" />
-                  <p className="text-[11px] font-bold text-stone-700">
-                    Click to attach Invoice PDF, Bill, Work Order, or Proof of Service
+                  <Upload className="w-6 h-6 text-emerald-600 mx-auto mb-1.5" />
+                  <p className="text-xs font-bold text-stone-800">
+                    Click here to attach Invoice PDF, Bill, Work Order, or Photo
                   </p>
-                  <p className="text-[10px] text-stone-400 mt-0.5">
-                    Saved documents will be attached in emails and referenced in WhatsApp automatically.
+                  <p className="text-[10px] text-stone-500 mt-0.5">
+                    Supports PDF, JPG, PNG, DOCX, XLSX (up to 25MB). Documents stay saved with this reminder.
                   </p>
+                  <div className="mt-2.5 flex items-center justify-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 px-3 py-1 rounded-lg border border-emerald-300 transition-colors">
+                      <Plus className="w-3 h-3 text-emerald-700" />
+                      Browse Files from Device
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAttachSampleInvoice();
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-teal-800 bg-teal-50 hover:bg-teal-100 px-2.5 py-1 rounded-lg border border-teal-200 cursor-pointer transition-colors"
+                    >
+                      <Sparkles className="w-3 h-3 text-teal-600" />
+                      Attach Sample Bill
+                    </button>
+                  </div>
                 </div>
               ) : (
-                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                   {documents.map((doc) => (
                     <div
                       key={doc.id}
@@ -996,6 +1140,25 @@ export const ClientPaymentReminderModal: React.FC = () => {
                       </div>
                     </div>
                   ))}
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex-1 py-1.5 px-2.5 rounded-lg border border-dashed border-emerald-400 bg-emerald-50/70 hover:bg-emerald-100/70 text-emerald-800 text-[11px] font-bold text-center cursor-pointer transition-colors flex items-center justify-center gap-1"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-emerald-700" />
+                      <span>+ Add Another File / Receipt</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAttachSampleInvoice}
+                      className="py-1.5 px-2.5 rounded-lg border border-teal-200 bg-teal-50 hover:bg-teal-100 text-teal-800 text-[11px] font-bold text-center cursor-pointer transition-colors flex items-center justify-center gap-1"
+                      title="Attach sample invoice"
+                    >
+                      <Sparkles className="w-3 h-3 text-teal-600" />
+                      <span>Sample Bill</span>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
