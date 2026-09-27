@@ -1,0 +1,890 @@
+{
+  "version": 295,
+  "lastUpdated": "2026-09-24T21:52:32.160Z",
+  "data": {
+    "users": [
+      {
+        "id": "usr_director",
+        "employeeId": "DIR-001",
+        "name": "Executive Director",
+        "designation": "Managing Director & Operations Head",
+        "mobile": "+91 98765 43210",
+        "whatsapp": "+91 98765 43210",
+        "email": "englisheducation7541@gmail.com",
+        "department": "Executive Board",
+        "role": "admin",
+        "active": true,
+        "joiningDate": "2023-01-01",
+        "secureToken": "token_director_master99",
+        "password": "admin123",
+        "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
+      }
+    ],
+    "customers": [
+      {
+        "id": "cust_abc",
+        "customerId": "CUST-001",
+        "companyName": "ABC Hospital & Medical College",
+        "contactPerson": "Dr. Vivek Malhotra",
+        "mobile": "+91 98999 11111",
+        "whatsapp": "+91 98999 11111",
+        "email": "facilities@abchospital.org",
+        "address": "Plot 4, Knowledge Park III",
+        "city": "Greater Noida",
+        "state": "Uttar Pradesh",
+        "customerType": "Hospital",
+        "notes": "24/7 Critical Facility. Wear clean PPE in plant room.",
+        "createdAt": "2024-01-10",
+        "sites": [
+          {
+            "id": "site_abc_1",
+            "customerId": "cust_abc",
+            "siteName": "Main PSA Oxygen Generation Station",
+            "address": "Basement Level 2, Utility Block, ABC Hospital",
+            "contactPerson": "Mr. Rakesh (Plant Supervisor)",
+            "mobile": "+91 98999 11112",
+            "gpsLocation": "28.4744, 77.5040",
+            "notes": "Security gate pass required at Gate 3."
+          },
+          {
+            "id": "site_abc_2",
+            "customerId": "cust_abc",
+            "siteName": "ICU High Pressure Manifold Room",
+            "address": "3rd Floor, Super Specialty Tower",
+            "contactPerson": "Nurse Supervisor Reena",
+            "mobile": "+91 98999 11113",
+            "gpsLocation": "28.4744, 77.5040",
+            "notes": "Quiet zone between 2 PM to 4 PM."
+          }
+        ]
+      },
+      {
+        "id": "cust_xyz",
+        "customerId": "CUST-002",
+        "companyName": "XYZ Industries Ltd",
+        "contactPerson": "Mr. Pradeep Singhania",
+        "mobile": "+91 98888 22222",
+        "whatsapp": "+91 98888 22222",
+        "email": "plant.head@xyzindustries.com",
+        "address": "Sector 8, IMT Manesar",
+        "city": "Gurugram",
+        "state": "Haryana",
+        "customerType": "Industrial",
+        "notes": "Safety shoes and helmet mandatory at all times.",
+        "createdAt": "2024-02-15",
+        "sites": [
+          {
+            "id": "site_xyz_1",
+            "customerId": "cust_xyz",
+            "siteName": "Plant 1 - Heavy Boiler & Air Compression Room",
+            "address": "Gate 2, IMT Manesar Industrial Estate",
+            "contactPerson": "Mr. Joginder Singh (Works Manager)",
+            "mobile": "+91 98888 22223",
+            "gpsLocation": "28.3588, 76.9388",
+            "notes": "Permit to work (PTW) must be signed before starting."
+          },
+          {
+            "id": "site_xyz_2",
+            "customerId": "cust_xyz",
+            "siteName": "Unit 4 - Cold Storage Cryogenic Tanks",
+            "address": "South Campus, Manesar",
+            "contactPerson": "Mr. Tarun (Safety Officer)",
+            "mobile": "+91 98888 22224",
+            "gpsLocation": "28.3590, 76.9392"
+          }
+        ]
+      },
+      {
+        "id": "cust_metro",
+        "customerId": "CUST-003",
+        "companyName": "Metro Medical Diagnostic Centre",
+        "contactPerson": "Dr. Anita Roy",
+        "mobile": "+91 98777 33333",
+        "whatsapp": "+91 98777 33333",
+        "email": "admin@metromedical.in",
+        "address": "Ring Road, South Extension Part 1",
+        "city": "New Delhi",
+        "state": "Delhi",
+        "customerType": "Hospital",
+        "notes": "Premium diagnostic imaging center. Work only during maintenance windows.",
+        "createdAt": "2024-03-01",
+        "sites": [
+          {
+            "id": "site_metro_1",
+            "customerId": "cust_metro",
+            "siteName": "Main Diagnostic Block - MRI Chiller Room",
+            "address": "Rear Courtyard, Metro Medical, South Ex 1",
+            "contactPerson": "Mr. Arvind (Facility Engg)",
+            "mobile": "+91 98777 33334",
+            "gpsLocation": "28.5729, 77.2201"
+          }
+        ]
+      },
+      {
+        "id": "cust_greenpower",
+        "customerId": "CUST-004",
+        "companyName": "GreenPower Renewable Solutions",
+        "contactPerson": "Karan Mehra",
+        "mobile": "+91 98666 44444",
+        "whatsapp": "+91 98666 44444",
+        "email": "karan@greenpowersol.com",
+        "address": "DLF Cyber City, Building 10",
+        "city": "Gurugram",
+        "state": "Haryana",
+        "customerType": "Commercial",
+        "createdAt": "2024-04-12",
+        "sites": [
+          {
+            "id": "site_green_1",
+            "customerId": "cust_greenpower",
+            "siteName": "Commercial Solar Inverter Farm 500kW",
+            "address": "Tower B Rooftop, Cyber City",
+            "contactPerson": "Security Control Desk",
+            "mobile": "+91 98666 44445",
+            "gpsLocation": "28.4907, 77.0894"
+          }
+        ]
+      }
+    ],
+    "jobTypes": [
+      "Service",
+      "Installation",
+      "Maintenance",
+      "Breakdown",
+      "Site Visit",
+      "Inspection",
+      "Material Follow-up",
+      "Quotation Follow-up",
+      "Payment Follow-up",
+      "Customer Follow-up",
+      "Internal Task",
+      "Other"
+    ],
+    "jobs": [
+      {
+        "id": "job_1789404089176_rgvx6",
+        "jobId": "JR-2026-0103",
+        "title": "Technical Inspection – ABC Hospital & Medical College",
+        "description": "### 📋 Scope of Work\nsujit ko gazyron company visit karna hai cal morning nitrogen gas plant inspection keliye\n\n### 🔧 Execution Checklist\n1. Inspect equipment and verify operational parameters\n2. Perform diagnosis, overhaul, or filter/component replacement\n3. Conduct pressure/leak test and verify safety parameters\n4. Take before & after photos and obtain customer digital authorization",
+        "jobType": "Technical Inspection",
+        "priority": "normal",
+        "customerId": "cust_xyz",
+        "siteId": "site_xyz_1",
+        "contactPerson": "Mr. Joginder Singh (Works Manager)",
+        "contactNumber": "+91 98888 22223",
+        "assignedToId": "usr_1789402344639",
+        "additionalAssigneeIds": [],
+        "startDate": "2026-09-14",
+        "dueDate": "2026-09-15",
+        "dueTime": "10:00",
+        "estimatedDuration": "3 Hours",
+        "status": "completed",
+        "notes": [],
+        "dailyUpdates": [
+          {
+            "id": "du_1789408542555_aunk",
+            "authorId": "usr_1789402344639",
+            "authorName": "Sujit Kumar",
+            "authorRole": "engineer",
+            "date": "2026-09-14",
+            "time": "23:24",
+            "timestamp": "2026-09-14T17:55:42.555Z",
+            "workProgress": "Bsnsn",
+            "status": "completed",
+            "blockers": "Bsnn"
+          },
+          {
+            "id": "du_1789408513570_uv6l",
+            "authorId": "usr_1789402344639",
+            "authorName": "Sujit Kumar",
+            "authorRole": "engineer",
+            "date": "2026-09-14",
+            "time": "23:24",
+            "timestamp": "2026-09-14T17:55:13.570Z",
+            "workProgress": "Hi",
+            "status": "in_progress",
+            "blockers": "Ja"
+          }
+        ],
+        "attachments": [],
+        "reminderConfig": {
+          "enabled": true,
+          "triggers": {
+            "sevenDaysBefore": true,
+            "threeDaysBefore": true,
+            "oneDayBefore": true,
+            "morningOfDueDate": true,
+            "twoHoursBefore": true,
+            "atDueTime": true,
+            "overdueAlert": true
+          },
+          "overdueIntervalHours": 2
+        },
+        "createdAt": "2026-09-14T16:41:29.176Z",
+        "updatedAt": "2026-09-14T17:55:42.555Z"
+      },
+      {
+        "id": "job_1789403900872_bzb0m",
+        "jobId": "JR-2026-0102",
+        "title": "he",
+        "description": "he",
+        "jobType": "Customer Follow-up",
+        "priority": "normal",
+        "customerId": "cust_abc",
+        "siteId": "site_abc_1",
+        "contactPerson": "Mr. Rakesh (Plant Supervisor)",
+        "contactNumber": "+91 98999 11112",
+        "assignedToId": "usr_1789402344639",
+        "additionalAssigneeIds": [],
+        "startDate": "2026-09-14",
+        "dueDate": "2026-09-14",
+        "dueTime": "17:00",
+        "estimatedDuration": "3 Hours",
+        "status": "completed",
+        "notes": [],
+        "dailyUpdates": [
+          {
+            "id": "du_1789539068259_ljuj",
+            "authorId": "usr_director",
+            "authorName": "Executive Director",
+            "authorRole": "admin",
+            "date": "2026-09-16",
+            "time": "11:35",
+            "timestamp": "2026-09-16T06:11:08.259Z",
+            "workProgress": "yug",
+            "status": "completed",
+            "blockers": "hgj"
+          }
+        ],
+        "attachments": [],
+        "reminderConfig": {
+          "enabled": true,
+          "triggers": {
+            "sevenDaysBefore": true,
+            "threeDaysBefore": true,
+            "oneDayBefore": true,
+            "morningOfDueDate": true,
+            "twoHoursBefore": true,
+            "atDueTime": true,
+            "overdueAlert": true
+          },
+          "overdueIntervalHours": 2
+        },
+        "createdAt": "2026-09-14T16:38:20.873Z",
+        "updatedAt": "2026-09-16T06:11:08.259Z",
+        "escalated": true,
+        "escalationLevel": "manager"
+      },
+      {
+        "id": "job_1789403305179_f7yrx",
+        "jobId": "JR-2026-0101",
+        "title": "Payment Collection",
+        "description": "Contact Sensa Core regarding the pending payment and collect the outstanding amount.",
+        "jobType": "Payment Follow-up",
+        "priority": "high",
+        "customerId": "cust_abc",
+        "siteId": "site_abc_1",
+        "contactPerson": "Mr. Rakesh (Plant Supervisor)",
+        "contactNumber": "+91 98999 11112",
+        "assignedToId": "usr_1789402344639",
+        "additionalAssigneeIds": [],
+        "startDate": "2026-09-14",
+        "dueDate": "2026-09-30",
+        "dueTime": "17:00",
+        "estimatedDuration": "3 Hours",
+        "status": "assigned",
+        "notes": [],
+        "dailyUpdates": [],
+        "attachments": [],
+        "reminderConfig": {
+          "enabled": true,
+          "triggers": {
+            "sevenDaysBefore": true,
+            "threeDaysBefore": true,
+            "oneDayBefore": true,
+            "morningOfDueDate": true,
+            "twoHoursBefore": true,
+            "atDueTime": true,
+            "overdueAlert": true
+          },
+          "overdueIntervalHours": 2
+        },
+        "createdAt": "2026-09-14T16:28:25.179Z",
+        "updatedAt": "2026-09-14T16:28:24.415Z"
+      }
+    ],
+    "templates": [
+      {
+        "id": "tpl_new_assigned",
+        "code": "NEW_JOB_ASSIGNED",
+        "name": "New Job Assigned",
+        "category": "Job Alerts",
+        "templateText": "🔔 *JOB REMINDER — NEW ASSIGNMENT*\n\nHello {{employee_name}},\n\nYou have been assigned a new job by {{manager_name}}.\n\n📌 *Job:* {{job_title}}\n🆔 *Job ID:* {{job_id}}\n🏢 *Customer:* {{customer_name}}\n📍 *Location:* {{site}}\n📅 *Due Date:* {{due_date}}\n⏰ *Due Time:* {{due_time}}\n🚨 *Priority:* {{priority}}\n📝 *Job Description:*\n{{job_description}}\n\n👉 *Click here to view & accept immediately:*\n{{direct_access_url}}\n\nPlease review the job details and accept within 2 hours.\nThank you!\n— *Job Reminder Team*",
+        "variables": [
+          "employee_name",
+          "manager_name",
+          "job_title",
+          "job_id",
+          "customer_name",
+          "site",
+          "due_date",
+          "due_time",
+          "priority",
+          "job_description",
+          "direct_access_url"
+        ],
+        "isDefault": true
+      },
+      {
+        "id": "tpl_job_accepted",
+        "code": "JOB_ACCEPTED",
+        "name": "Job Accepted Confirmation",
+        "category": "Status Updates",
+        "templateText": "✅ *JOB ACCEPTED*\n\nHello {{manager_name}},\n\nEngineer {{employee_name}} has accepted Job *{{job_title}}* ({{job_id}}).\n\n🏢 Customer: {{customer_name}}\n📅 Deadline: {{due_date}} at {{due_time}}\nCurrent Status: Accepted & Scheduled.\n📝 *Job Description:*\n{{job_description}}\n\nDirect Link:\n{{direct_access_url}}",
+        "variables": [
+          "manager_name",
+          "employee_name",
+          "job_title",
+          "job_id",
+          "customer_name",
+          "due_date",
+          "due_time",
+          "job_description",
+          "direct_access_url"
+        ],
+        "isDefault": true
+      },
+      {
+        "id": "tpl_reminder_before",
+        "code": "REMINDER_BEFORE_DEADLINE",
+        "name": "Reminder Before Deadline",
+        "category": "Reminders",
+        "templateText": "⏰ *UPCOMING DEADLINE REMINDER*\n\nHello {{employee_name}},\n\nThis is a timely reminder for your assigned job:\n\n📌 *Job:* {{job_title}} ({{job_id}})\n🏢 *Customer:* {{customer_name}}\n📍 *Location:* {{site}}\n📅 *Deadline:* {{due_date}} at {{due_time}}\n🚨 *Priority:* {{priority}}\n📝 *Job Description:*\n{{job_description}}\n\nPlease ensure work is on schedule or update status here:\n{{direct_access_url}}\n\nThank you,\n*Job Reminder*",
+        "variables": [
+          "employee_name",
+          "job_title",
+          "job_id",
+          "customer_name",
+          "site",
+          "due_date",
+          "due_time",
+          "priority",
+          "job_description",
+          "direct_access_url"
+        ],
+        "isDefault": true
+      },
+      {
+        "id": "tpl_due_today",
+        "code": "DUE_TODAY",
+        "name": "Due Today Morning Alert",
+        "category": "Reminders",
+        "templateText": "☀️ *JOB DUE TODAY*\n\nGood morning {{employee_name}},\n\nYou have a job due TODAY:\n\n📌 *Job:* {{job_title}}\n🆔 *Job ID:* {{job_id}}\n🏢 *Customer:* {{customer_name}}\n⏰ *Due Time:* {{due_time}} today\n📍 *Location:* {{site}}\n📝 *Job Description:*\n{{job_description}}\n\nPlease initiate work and update status:\n{{direct_access_url}}\n\n*Job Reminder*",
+        "variables": [
+          "employee_name",
+          "job_title",
+          "job_id",
+          "customer_name",
+          "due_time",
+          "site",
+          "job_description",
+          "direct_access_url"
+        ],
+        "isDefault": true
+      },
+      {
+        "id": "tpl_due_2hours",
+        "code": "DUE_IN_2_HOURS",
+        "name": "Due in 2 Hours Critical Alert",
+        "category": "Reminders",
+        "templateText": "⚠️ *CRITICAL: DUE IN 2 HOURS*\n\nHello {{employee_name}},\n\nJob *{{job_title}}* ({{job_id}}) at *{{customer_name}}* is due in *2 HOURS* (at {{due_time}}).\n\nStatus: {{status}}\n📝 *Job Description:*\n{{job_description}}\n\nIf completed, please file your completion report now:\n{{direct_access_url}}\n\nIf you require an extension, please request it promptly in the app.",
+        "variables": [
+          "employee_name",
+          "job_title",
+          "job_id",
+          "customer_name",
+          "due_time",
+          "status",
+          "job_description",
+          "direct_access_url"
+        ],
+        "isDefault": true
+      },
+      {
+        "id": "tpl_deadline_reached",
+        "code": "DEADLINE_REACHED",
+        "name": "Deadline Reached Alert",
+        "category": "Reminders",
+        "templateText": "🛑 *DEADLINE REACHED*\n\nHello {{employee_name}},\n\nThe deadline for *{{job_title}}* ({{job_id}}) has been reached ({{due_time}}).\n\n📝 *Job Description:*\n{{job_description}}\n\nPlease update status or submit completion report immediately:\n{{direct_access_url}}\n\nUncompleted jobs will trigger automated manager escalation.",
+        "variables": [
+          "employee_name",
+          "job_title",
+          "job_id",
+          "due_time",
+          "job_description",
+          "direct_access_url"
+        ],
+        "isDefault": true
+      },
+      {
+        "id": "tpl_job_overdue",
+        "code": "JOB_OVERDUE",
+        "name": "Job Overdue Escalation Alert",
+        "category": "Escalation",
+        "templateText": "🚨 *OVERDUE JOB ESCALATION*\n\nATTENTION {{employee_name}} & {{manager_name}},\n\nJob *{{job_title}}* ({{job_id}}) for *{{customer_name}}* is now OVERDUE!\nOriginal deadline was: {{due_date}} at {{due_time}}.\n\nPriority: {{priority}}\nCurrent Status: {{status}}\n📝 *Job Description:*\n{{job_description}}\n\nImmediate update required:\n{{direct_access_url}}",
+        "variables": [
+          "employee_name",
+          "manager_name",
+          "job_title",
+          "job_id",
+          "customer_name",
+          "due_date",
+          "due_time",
+          "priority",
+          "status",
+          "job_description",
+          "direct_access_url"
+        ],
+        "isDefault": true
+      },
+      {
+        "id": "tpl_job_completed",
+        "code": "JOB_COMPLETED",
+        "name": "Job Completed Notification",
+        "category": "Status Updates",
+        "templateText": "🎉 *JOB COMPLETED SUCCESSFULLY*\n\nJob *{{job_title}}* ({{job_id}}) for *{{customer_name}}* has been marked COMPLETED by {{employee_name}}.\n\n📅 Completed On: {{due_date}}\nReport & Remarks available on dashboard:\n{{direct_access_url}}\n\nThank you for your service!\n*Job Reminder*",
+        "variables": [
+          "job_title",
+          "job_id",
+          "customer_name",
+          "employee_name",
+          "due_date",
+          "direct_access_url"
+        ],
+        "isDefault": true
+      },
+      {
+        "id": "tpl_job_reassigned",
+        "code": "JOB_REASSIGNED",
+        "name": "Job Reassigned Notice",
+        "category": "Job Alerts",
+        "templateText": "🔄 *JOB REASSIGNED*\n\nHello {{employee_name}},\n\nJob *{{job_title}}* ({{job_id}}) at *{{customer_name}}* has been assigned to you by {{manager_name}}.\n\n📅 Deadline: {{due_date}} at {{due_time}}\n📍 Location: {{site}}\n📝 *Job Description:*\n{{job_description}}\n\nReview & accept job:\n{{direct_access_url}}",
+        "variables": [
+          "employee_name",
+          "job_title",
+          "job_id",
+          "customer_name",
+          "manager_name",
+          "due_date",
+          "due_time",
+          "site",
+          "job_description",
+          "direct_access_url"
+        ],
+        "isDefault": true
+      },
+      {
+        "id": "tpl_job_cancelled",
+        "code": "JOB_CANCELLED",
+        "name": "Job Cancelled Notice",
+        "category": "Status Updates",
+        "templateText": "❌ *JOB CANCELLED*\n\nHello {{employee_name}},\n\nJob *{{job_title}}* ({{job_id}}) for *{{customer_name}}* has been CANCELLED by management.\n\nNo further action is required on this task.\n{{direct_access_url}}",
+        "variables": [
+          "employee_name",
+          "job_title",
+          "job_id",
+          "customer_name",
+          "direct_access_url"
+        ],
+        "isDefault": true
+      },
+      {
+        "id": "tpl_daily_pending",
+        "code": "DAILY_PENDING_JOBS",
+        "name": "Daily Pending Jobs Summary",
+        "category": "Summaries",
+        "templateText": "📋 *DAILY PENDING JOBS — {{employee_name}}*\n\nGood morning {{employee_name}},\n\nHere is your daily task list:\nYou have active jobs scheduled today.\n\nOpen your Mobile My Jobs dashboard to view, navigate and complete:\n{{direct_access_url}}\n\nHave a productive day!\n*Job Reminder*",
+        "variables": [
+          "employee_name",
+          "direct_access_url"
+        ],
+        "isDefault": true
+      },
+      {
+        "id": "tpl_daily_summary",
+        "code": "DAILY_TEAM_SUMMARY",
+        "name": "Daily Team Summary for Managers",
+        "category": "Summaries",
+        "templateText": "📊 *DAILY TEAM SUMMARY — {{company_name}}*\n\nDate: Today\nTotal Active Jobs: 14\nPending: 4 | In Progress: 3 | Overdue: 2 | Completed: 5\n\n🚨 *Urgent & Overdue Attention:*\n- JR-2026-0104: Breakdown – Oxygen Plant Compressor (Overdue)\n- JR-2026-0101: Preventive Maintenance – PSA Oxygen Plant (Due Today)\n\nView live operations dashboard:\n{{direct_access_url}}",
+        "variables": [
+          "company_name",
+          "direct_access_url"
+        ],
+        "isDefault": true
+      }
+    ],
+    "messageLogs": [],
+    "activities": [
+      {
+        "id": "act_1789897781645_993h",
+        "jobId": "usr_sandeep",
+        "timestamp": "2026-09-20T09:49:41.645Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "employee_deleted",
+        "description": "Team member \"Sandeep Kumar\" (engineer) removed by Executive Director."
+      },
+      {
+        "id": "act_1789897777772_xpyq",
+        "jobId": "usr_amit",
+        "timestamp": "2026-09-20T09:49:37.772Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "employee_deleted",
+        "description": "Team member \"Amit Patel\" (engineer) removed by Executive Director."
+      },
+      {
+        "id": "act_1789897773527_s6s6",
+        "jobId": "usr_rahul",
+        "timestamp": "2026-09-20T09:49:33.527Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "employee_deleted",
+        "description": "Team member \"Rahul Sharma\" (engineer) removed by Executive Director."
+      },
+      {
+        "id": "act_1789897769067_3p2j",
+        "jobId": "usr_manager",
+        "timestamp": "2026-09-20T09:49:29.067Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "employee_deleted",
+        "description": "Team member \"Rajesh Verma\" (manager) removed by Executive Director."
+      },
+      {
+        "id": "act_1789897764484_ypfm",
+        "jobId": "usr_admin",
+        "timestamp": "2026-09-20T09:49:24.484Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "employee_deleted",
+        "description": "Team member \"Sarah Jenkins\" (admin) removed by Executive Director."
+      },
+      {
+        "id": "act_1789896392760_w8om",
+        "jobId": "company",
+        "timestamp": "2026-09-20T09:26:32.760Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "company_updated",
+        "description": "Company organization profile updated by Executive Director (admin). Name: \"Abhimanyu\"",
+        "metadata": {
+          "companyName": "Abhimanyu",
+          "email": "abhimanyu.k.works@gmail.com",
+          "hasLogo": false
+        }
+      },
+      {
+        "id": "act_1789890445470_uu18",
+        "jobId": "company",
+        "timestamp": "2026-09-20T07:47:25.470Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "company_updated",
+        "description": "Company organization profile updated by Executive Director (admin). Name: \"Ap\"",
+        "metadata": {
+          "companyName": "Ap",
+          "email": "service@apexengg.com",
+          "hasLogo": true
+        }
+      },
+      {
+        "id": "act_1789890429257_os0l",
+        "jobId": "company",
+        "timestamp": "2026-09-20T07:47:09.257Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "company_updated",
+        "description": "Company organization profile updated by Executive Director (admin). Name: \"Ap\"",
+        "metadata": {
+          "companyName": "Ap",
+          "email": "service@apexengg.com",
+          "hasLogo": true
+        }
+      },
+      {
+        "id": "act_1789890025267_uzq0",
+        "jobId": "job_11",
+        "timestamp": "2026-09-20T07:40:25.267Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "escalated",
+        "description": "Job marked OVERDUE automatically by scheduler."
+      },
+      {
+        "id": "act_1789890025267_43qd",
+        "jobId": "job_10",
+        "timestamp": "2026-09-20T07:40:25.267Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "escalated",
+        "description": "Job marked OVERDUE automatically by scheduler."
+      },
+      {
+        "id": "act_1789890025267_jbig",
+        "jobId": "job_9",
+        "timestamp": "2026-09-20T07:40:25.267Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "escalated",
+        "description": "Job marked OVERDUE automatically by scheduler."
+      },
+      {
+        "id": "act_1789890025267_miym",
+        "jobId": "job_8",
+        "timestamp": "2026-09-20T07:40:25.267Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "escalated",
+        "description": "Job marked OVERDUE automatically by scheduler."
+      },
+      {
+        "id": "act_1789890025267_wnua",
+        "jobId": "job_6",
+        "timestamp": "2026-09-20T07:40:25.267Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "escalated",
+        "description": "Job marked OVERDUE automatically by scheduler."
+      },
+      {
+        "id": "act_1789890025267_amo7",
+        "jobId": "job_5",
+        "timestamp": "2026-09-20T07:40:25.267Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "escalated",
+        "description": "Job marked OVERDUE automatically by scheduler."
+      },
+      {
+        "id": "act_1789890025267_h9mz",
+        "jobId": "job_3",
+        "timestamp": "2026-09-20T07:40:25.267Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "escalated",
+        "description": "Job marked OVERDUE automatically by scheduler."
+      },
+      {
+        "id": "act_1789890025267_kqdy",
+        "jobId": "job_2",
+        "timestamp": "2026-09-20T07:40:25.267Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "escalated",
+        "description": "Job marked OVERDUE automatically by scheduler."
+      },
+      {
+        "id": "act_1789890025267_ium4",
+        "jobId": "job_1",
+        "timestamp": "2026-09-20T07:40:25.267Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "escalated",
+        "description": "Job marked OVERDUE automatically by scheduler."
+      },
+      {
+        "id": "act_1789890025267_819i",
+        "jobId": "job_11",
+        "timestamp": "2026-09-20T07:40:25.267Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "escalated",
+        "description": "Job marked OVERDUE automatically by scheduler."
+      },
+      {
+        "id": "act_1789890025267_fcxp",
+        "jobId": "job_10",
+        "timestamp": "2026-09-20T07:40:25.267Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "escalated",
+        "description": "Job marked OVERDUE automatically by scheduler."
+      },
+      {
+        "id": "act_1789890025267_nwle",
+        "jobId": "job_9",
+        "timestamp": "2026-09-20T07:40:25.267Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "escalated",
+        "description": "Job marked OVERDUE automatically by scheduler."
+      },
+      {
+        "id": "act_1789890025267_hmza",
+        "jobId": "job_8",
+        "timestamp": "2026-09-20T07:40:25.267Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "escalated",
+        "description": "Job marked OVERDUE automatically by scheduler."
+      },
+      {
+        "id": "act_1789890025267_j8ii",
+        "jobId": "job_6",
+        "timestamp": "2026-09-20T07:40:25.267Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "escalated",
+        "description": "Job marked OVERDUE automatically by scheduler."
+      },
+      {
+        "id": "act_1789890025267_gl8o",
+        "jobId": "job_5",
+        "timestamp": "2026-09-20T07:40:25.267Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "escalated",
+        "description": "Job marked OVERDUE automatically by scheduler."
+      },
+      {
+        "id": "act_1789890025267_7yd2",
+        "jobId": "job_3",
+        "timestamp": "2026-09-20T07:40:25.267Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "escalated",
+        "description": "Job marked OVERDUE automatically by scheduler."
+      },
+      {
+        "id": "act_1789890025267_ancc",
+        "jobId": "job_2",
+        "timestamp": "2026-09-20T07:40:25.267Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "escalated",
+        "description": "Job marked OVERDUE automatically by scheduler."
+      },
+      {
+        "id": "act_1789890025266_m4f0",
+        "jobId": "job_1",
+        "timestamp": "2026-09-20T07:40:25.266Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "escalated",
+        "description": "Job marked OVERDUE automatically by scheduler."
+      },
+      {
+        "id": "act_1789889902696_h6nz",
+        "jobId": "company",
+        "timestamp": "2026-09-20T07:38:22.696Z",
+        "actorId": "usr_director",
+        "actorName": "Executive Director",
+        "actionType": "company_updated",
+        "description": "Company organization profile updated by Executive Director (admin). Name: \"A\"",
+        "metadata": {
+          "companyName": "A",
+          "email": "service@apexengg.com",
+          "hasLogo": false
+        }
+      },
+      {
+        "id": "act_1",
+        "jobId": "job_1",
+        "timestamp": "2026-09-08T09:00:00Z",
+        "actorId": "usr_manager",
+        "actorName": "Rajesh Verma",
+        "actionType": "created",
+        "description": "Job JR-2026-0101 created and scheduled for 11 Sep 2026."
+      },
+      {
+        "id": "act_2",
+        "jobId": "job_1",
+        "timestamp": "2026-09-08T09:05:00Z",
+        "actorId": "usr_manager",
+        "actorName": "Rajesh Verma",
+        "actionType": "assigned",
+        "description": "Assigned to Rahul Sharma with High priority."
+      },
+      {
+        "id": "act_3",
+        "jobId": "job_1",
+        "timestamp": "2026-09-08T09:06:00Z",
+        "actorId": "system",
+        "actorName": "WhatsApp Automated Bot",
+        "actionType": "whatsapp_sent",
+        "description": "Automatic WhatsApp assignment reminder sent to Rahul Sharma (+91 98222 33445). Delivered."
+      },
+      {
+        "id": "act_4",
+        "jobId": "job_1",
+        "timestamp": "2026-09-08T10:15:00Z",
+        "actorId": "usr_rahul",
+        "actorName": "Rahul Sharma",
+        "actionType": "accepted",
+        "description": "Rahul Sharma accepted the job via 1-click token link."
+      },
+      {
+        "id": "act_5",
+        "jobId": "job_1",
+        "timestamp": "2026-09-11T08:00:00Z",
+        "actorId": "system",
+        "actorName": "Reminder Engine",
+        "actionType": "reminder_sent",
+        "description": "Morning due-date reminder sent via WhatsApp Business API."
+      },
+      {
+        "id": "act_6",
+        "jobId": "job_1",
+        "timestamp": "2026-09-11T10:00:00Z",
+        "actorId": "usr_rahul",
+        "actorName": "Rahul Sharma",
+        "actionType": "status_change",
+        "description": "Status changed from Accepted to In Progress. Site work started."
+      },
+      {
+        "id": "act_7",
+        "jobId": "job_4",
+        "timestamp": "2026-09-10T18:05:00Z",
+        "actorId": "system",
+        "actorName": "Automated Escalation Engine",
+        "actionType": "escalated",
+        "description": "Job passed deadline (10 Sep 18:00). Escalated to Manager Rajesh Verma."
+      }
+    ],
+    "whatsappSettings": {
+      "provider": "meta_cloud",
+      "apiUrl": "https://graph.facebook.com/v20.0",
+      "apiToken": "EAAQ...demo_token_sec_key_masked",
+      "phoneNumberId": "109283746592819",
+      "businessAccountId": "209384756291039",
+      "webhookUrl": "https://api.jobreminder.io/webhooks/whatsapp",
+      "senderName": "Job Reminder Notifications",
+      "autoSendEnabled": true,
+      "retryAttempts": 3,
+      "openWhatsAppFallback": true
+    },
+    "companySettings": {
+      "companyName": "Abhimanyu",
+      "tagline": "Assign. Remind. Track. Complete.",
+      "address": "Plot 12, Industrial Area Phase 1, New Delhi - 110020",
+      "contactNumber": "+91 7541882104",
+      "email": "abhimanyu.k.works@gmail.com",
+      "website": "https://youtube.com",
+      "gstNumber": "07XXXXXXXXXXXXZ5",
+      "bankName": "State Bank of India",
+      "accountNumber": "38920192847",
+      "ifscCode": "SBIN0001234",
+      "upiId": "7541882104@upi",
+      "dailySummaryTime": "08:30",
+      "enableDailySummary": true,
+      "unacceptedEscalationHours": 2,
+      "overdueEscalationHours": 4,
+      "logoUrl": "",
+      "companyLogo": ""
+    },
+    "paymentReminders": [],
+    "deletedUserIds": [],
+    "deletedJobIds": []
+  }
+}

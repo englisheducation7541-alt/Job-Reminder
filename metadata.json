@@ -1,0 +1,7 @@
+{
+  "name": "Job Reminder",
+  "description": "Professional B2B SaaS job and reminder management system with Google Drive cloud backup, automatic WhatsApp reminders, multi-role access, and cross-device synchronization.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

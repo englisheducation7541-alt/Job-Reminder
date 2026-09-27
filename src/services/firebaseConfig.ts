@@ -1,0 +1,12 @@
+// Firebase Client Configuration
+export const firebaseConfig = {
+  projectId: "ai-studio-applet-webapp-60115",
+  appId: "1:476934815733:web:f6c0b2e4b4e46b50b96abc",
+  apiKey: "AIzaSyBo5WYqzCs1e9UJSlApNLyW2FW25PfgOZA",
+  authDomain: "ai-studio-applet-webapp-60115.firebaseapp.com",
+  storageBucket: "ai-studio-applet-webapp-60115.firebasestorage.app",
+  messagingSenderId: "476934815733",
+  measurementId: "",
+  oAuthClientId: "476934815733-8ch5bm6njlu68tovp5egjdsl7nt60f5f.apps.googleusercontent.com",
+  recaptchaSiteKey: ""
+};
