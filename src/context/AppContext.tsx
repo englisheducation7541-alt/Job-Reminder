@@ -24,6 +24,7 @@ import {
   JobDailyUpdate,
   JobPriority,
   JobStatus,
+  PaymentDocumentAttachment,
   PaymentReminderStatus,
   User,
   UserRole,
@@ -253,9 +254,10 @@ interface AppContextType {
   setIsPaymentReminderOpen: (open: boolean) => void;
   activeCustomerForPaymentReminder: Customer | null;
   activeJobForPaymentReminder: Job | null;
-  openPaymentReminderModal: (customer?: Customer | null, job?: Job | null) => void;
+  openPaymentReminderModal: (customer?: Customer | null, job?: Job | null, reminder?: ClientPaymentReminder | null) => void;
   sendPaymentReminderEmail: (payload: {
     toEmail: string;
+    ccEmail?: string;
     subject: string;
     body: string;
     customerName: string;
@@ -263,6 +265,8 @@ interface AppContextType {
     amount: number;
     jobId?: string;
     customerId: string;
+    reminderId?: string;
+    documents?: PaymentDocumentAttachment[];
   }) => Promise<{ success: boolean; message: string }>;
 
   // Client Payment Reminders Ledger System
@@ -525,14 +529,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activeCustomerForPaymentReminder, setActiveCustomerForPaymentReminder] = useState<Customer | null>(null);
   const [activeJobForPaymentReminder, setActiveJobForPaymentReminder] = useState<Job | null>(null);
 
-  const openPaymentReminderModal = (customer?: Customer | null, job?: Job | null) => {
+  const openPaymentReminderModal = (customer?: Customer | null, job?: Job | null, reminder?: ClientPaymentReminder | null) => {
     setActiveCustomerForPaymentReminder(customer || null);
     setActiveJobForPaymentReminder(job || null);
+    setEditingPaymentReminder(reminder || null);
     setIsPaymentReminderOpen(true);
   };
 
   const sendPaymentReminderEmail = async (payload: {
     toEmail: string;
+    ccEmail?: string;
     subject: string;
     body: string;
     customerName: string;
@@ -540,6 +546,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     amount: number;
     jobId?: string;
     customerId: string;
+    reminderId?: string;
+    documents?: PaymentDocumentAttachment[];
   }) => {
     try {
       const res = await fetch('/api/reminders/send-email', {
@@ -547,19 +555,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to: payload.toEmail,
+          cc: payload.ccEmail,
           subject: payload.subject,
           body: payload.body,
           customerName: payload.customerName,
           invoiceNumber: payload.invoiceNumber,
           amount: payload.amount,
+          reminderId: payload.reminderId,
+          documents: payload.documents,
         }),
       });
       const data = await res.json();
       if (data.success) {
+        // Update local reminder record tracking
+        if (payload.reminderId) {
+          updatePaymentReminder(payload.reminderId, {
+            remindersCount: ((paymentReminders.find((r) => r.id === payload.reminderId)?.remindersCount || 0) + 1),
+            lastReminderSentAt: new Date().toISOString(),
+            lastReminderChannel: 'email',
+          });
+        }
+
         logActivity(
           payload.jobId || 'payment',
           'reminder_sent',
-          `Payment Reminder Email dispatched to ${payload.customerName} (${payload.toEmail}) for ₹${payload.amount} (Invoice #${payload.invoiceNumber}).`
+          `Payment Reminder Email dispatched to ${payload.customerName} (${payload.toEmail}${payload.ccEmail ? `, CC: ${payload.ccEmail}` : ''}) for ₹${payload.amount} (Invoice #${payload.invoiceNumber}).`
         );
         addNotification({
           recipientUserId: currentUser.id,
@@ -604,17 +624,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addPaymentReminder = (reminderData: Omit<ClientPaymentReminder, 'id' | 'createdAt' | 'updatedAt'>) => {
+    hasUserEditedDataRef.current = true;
     const newReminder: ClientPaymentReminder = {
       ...reminderData,
       id: `pay_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      documents: reminderData.documents || [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+
     setPaymentReminders((prev) => {
-      const updated = [newReminder, ...prev];
+      const updated = [newReminder, ...prev.filter((r) => r.id !== newReminder.id)];
       try { localStorage.setItem('jr_payment_reminders', JSON.stringify(updated)); } catch {}
       return updated;
     });
+
     logActivity(
       newReminder.jobId || 'payment',
       'system_update',
@@ -626,17 +650,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       message: `Payment reminder #${newReminder.invoiceNumber} set for ${newReminder.customerName}.`,
       type: 'reminder_sent',
     });
+
+    // Atomic server push
+    fetch('/api/payment-reminders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newReminder),
+    })
+      .then((res) => res.json())
+      .then((resData) => {
+        if (resData?.version) {
+          serverVersionRef.current = resData.version;
+        }
+        if (Array.isArray(resData?.paymentReminders)) {
+          setPaymentReminders(resData.paymentReminders);
+          try { localStorage.setItem('jr_payment_reminders', JSON.stringify(resData.paymentReminders)); } catch {}
+        }
+      })
+      .catch((err) => console.warn('[Payment Reminders] Server sync error:', err));
   };
 
   const updatePaymentReminder = (id: string, updates: Partial<ClientPaymentReminder>) => {
+    hasUserEditedDataRef.current = true;
     setPaymentReminders((prev) => {
       const updated = prev.map((item) => (item.id === id ? { ...item, ...updates, updatedAt: new Date().toISOString() } : item));
       try { localStorage.setItem('jr_payment_reminders', JSON.stringify(updated)); } catch {}
       return updated;
     });
+
+    // Atomic server update
+    fetch(`/api/payment-reminders/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    })
+      .then((res) => res.json())
+      .then((resData) => {
+        if (resData?.version) {
+          serverVersionRef.current = resData.version;
+        }
+        if (Array.isArray(resData?.paymentReminders)) {
+          setPaymentReminders(resData.paymentReminders);
+          try { localStorage.setItem('jr_payment_reminders', JSON.stringify(resData.paymentReminders)); } catch {}
+        }
+      })
+      .catch((err) => console.warn('[Payment Reminders] Server update error:', err));
   };
 
   const deletePaymentReminder = (id: string) => {
+    hasUserEditedDataRef.current = true;
     const target = paymentReminders.find((r) => r.id === id);
     setPaymentReminders((prev) => {
       const updated = prev.filter((item) => item.id !== id);
@@ -650,6 +712,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         `Deleted Payment Reminder #${target.invoiceNumber} for ${target.customerName}.`
       );
     }
+
+    // Atomic server deletion
+    fetch(`/api/payment-reminders/${id}`, {
+      method: 'DELETE',
+    })
+      .then((res) => res.json())
+      .then((resData) => {
+        if (resData?.version) {
+          serverVersionRef.current = resData.version;
+        }
+      })
+      .catch((err) => console.warn('[Payment Reminders] Server delete error:', err));
   };
 
   const recordPaymentReceived = (id: string, amountPaid: number, notes?: string) => {
@@ -832,6 +906,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (resJson.allData.companySettings) {
             setCompanySettings(resJson.allData.companySettings);
             try { localStorage.setItem('jr_co_settings', JSON.stringify(resJson.allData.companySettings)); } catch {}
+          }
+          if (Array.isArray(resJson.allData.paymentReminders)) {
+            setPaymentReminders(resJson.allData.paymentReminders);
+            try { localStorage.setItem('jr_payment_reminders', JSON.stringify(resJson.allData.paymentReminders)); } catch {}
           }
           setTimeout(() => {
             isSyncingFromServerRef.current = false;
@@ -1039,6 +1117,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (resJson.allData.companySettings) {
             setCompanySettings(resJson.allData.companySettings);
             try { localStorage.setItem('jr_co_settings', JSON.stringify(resJson.allData.companySettings)); } catch {}
+          }
+          if (Array.isArray(resJson.allData.paymentReminders)) {
+            setPaymentReminders(resJson.allData.paymentReminders);
+            try { localStorage.setItem('jr_payment_reminders', JSON.stringify(resJson.allData.paymentReminders)); } catch {}
           }
           setTimeout(() => {
             isSyncingFromServerRef.current = false;

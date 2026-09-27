@@ -1,4 +1,4 @@
-import { CompanySettings, Customer, CustomerSite, Job } from '../types';
+import { CompanySettings, Customer, CustomerSite, Job, PaymentDocumentAttachment } from '../types';
 import { cleanPhoneNumber, formatDateDisplay, getPublicAppOrigin } from './whatsappEngine';
 
 export interface PaymentReminderContext {
@@ -8,6 +8,7 @@ export interface PaymentReminderContext {
   contactPerson: string;
   contactMobile: string;
   contactEmail: string;
+  clientCcEmails?: string;
   invoiceNumber: string;
   amount: number;
   dueDate: string;
@@ -15,6 +16,7 @@ export interface PaymentReminderContext {
   language: 'en' | 'hi' | 'hinglish';
   companySettings: CompanySettings;
   customNote?: string;
+  documents?: PaymentDocumentAttachment[];
 }
 
 export function formatIndianCurrency(amount: number): string {
@@ -54,6 +56,13 @@ export function generatePaymentWhatsAppMessage(ctx: PaymentReminderContext): str
 
   const recipientGreeting = contactPerson ? `${contactPerson} (${customer.companyName})` : customer.companyName;
 
+  const docsTextHi =
+    ctx.documents && ctx.documents.length > 0
+      ? `📎 *संलग्न दस्तावेज़ / बिल (Attached Documents):*\n${ctx.documents
+          .map((d, i) => `• ${d.name} (${d.size || 'Attached file'})`)
+          .join('\n')}\n\n`
+      : '';
+
   if (language === 'hi') {
     let header = '🔔 *भुगतान अनुस्मारक (Payment Reminder)*';
     let toneMessage = `आपके कार्य/सेवा का बकाया बिल तैयार है। कृपया नियत तिथि तक भुगतान सुनिश्चित करें।`;
@@ -79,7 +88,7 @@ ${toneMessage}
 ${job ? `• *जॉब/कार्य संदर्भ:* ${job.title} (${job.jobId})\n` : ''}• *कुल देय राशि:* *${formattedAmount}*
 • *अंतिम देय तिथि:* *${formattedDate}*
 
-🏦 *भुगतान बैंक एवं UPI विवरण:*
+${docsTextHi}🏦 *भुगतान बैंक एवं UPI विवरण:*
 • *कंपनी/खाता धारक:* ${companyName}
 • *बैंक का नाम:* ${bankName}
 • *खाता संख्या (A/c No):* ${accNo}
@@ -92,6 +101,13 @@ ${customNote ? `💬 *अतिरिक्त टिप्पणी:* ${customN
 *${companyName} Finance & Accounts Team*
 📞 संपर्क: ${companyContact}`;
   }
+
+  const docsTextHinglish =
+    ctx.documents && ctx.documents.length > 0
+      ? `📎 *Attached Documents / Bills:*\n${ctx.documents
+          .map((d, i) => `• ${d.name} (${d.size || 'Attached file'})`)
+          .join('\n')}\n\n`
+      : '';
 
   if (language === 'hinglish') {
     let header = '🔔 *Payment Reminder Notice*';
@@ -118,7 +134,7 @@ ${toneMessage}
 ${job ? `• *Job Reference:* ${job.title} (${job.jobId})\n` : ''}• *Total Outstanding Amount:* *${formattedAmount}*
 • *Due Date:* *${formattedDate}*
 
-🏦 *Bank & UPI Payment Details:*
+${docsTextHinglish}🏦 *Bank & UPI Payment Details:*
 • *Beneficiary:* ${companyName}
 • *Bank:* ${bankName}
 • *Account Number:* ${accNo}
@@ -131,6 +147,13 @@ Thank you!
 *${companyName} Accounts Team*
 📞 Support: ${companyContact}`;
   }
+
+  const docsTextEn =
+    ctx.documents && ctx.documents.length > 0
+      ? `📎 *Attached Invoices & Documents:*\n${ctx.documents
+          .map((d, i) => `• ${d.name} (${d.size || 'Attached file'})`)
+          .join('\n')}\n\n`
+      : '';
 
   // English Default
   let header = '🔔 *Official Payment Reminder*';
@@ -157,7 +180,7 @@ ${toneMessage}
 ${job ? `• *Work Order/Job:* ${job.title} (${job.jobId})\n` : ''}• *Total Amount Due:* *${formattedAmount}*
 • *Payment Due Date:* *${formattedDate}*
 
-🏦 *Direct Bank & UPI Transfer Details:*
+${docsTextEn}🏦 *Direct Bank & UPI Transfer Details:*
 • *Beneficiary Name:* ${companyName}
 • *Bank Name:* ${bankName}
 • *Account Number:* ${accNo}
@@ -179,11 +202,13 @@ export function generatePaymentEmail(ctx: PaymentReminderContext): {
   subject: string;
   body: string;
   recipientEmail: string;
+  ccEmail?: string;
 } {
   const {
     customer,
     contactPerson,
     contactEmail,
+    clientCcEmails,
     invoiceNumber,
     amount,
     dueDate,
@@ -192,6 +217,7 @@ export function generatePaymentEmail(ctx: PaymentReminderContext): {
     tone,
     language,
     customNote,
+    documents,
   } = ctx;
 
   const formattedAmount = formatIndianCurrency(amount);
@@ -213,6 +239,13 @@ export function generatePaymentEmail(ctx: PaymentReminderContext): {
 
   const recipientName = contactPerson || customer.contactPerson || 'Accounts Manager';
 
+  const docsSection =
+    documents && documents.length > 0
+      ? `\n=======================================================\nATTACHED DOCUMENTS & BILL COPIES\n=======================================================\n${documents
+          .map((d, i) => `${i + 1}. ${d.name} (${d.size || 'Attached file'})`)
+          .join('\n')}\n(Copies filed and recorded with this payment notice)\n`
+      : '';
+
   const body = `Dear ${recipientName},
 
 We hope this email finds you well.
@@ -228,7 +261,7 @@ Invoice / Reference No: #${invoiceNumber}
 ${job ? `Work Order / Service: ${job.title} (ID: ${job.jobId})\n` : ''}Total Amount Due: ${formattedAmount}
 Payment Due Date: ${formattedDate}
 Payment Status: Pending Payment
-
+${docsSection}
 =======================================================
 BANK & UPI TRANSFER DETAILS
 =======================================================
@@ -254,6 +287,7 @@ Address: ${companySettings?.address || 'Plot 12, Industrial Area Phase 1, New De
     subject,
     body,
     recipientEmail: contactEmail || customer.email || '',
+    ccEmail: clientCcEmails,
   };
 }
 
@@ -266,19 +300,26 @@ export function generateClientPaymentWhatsAppUrl(phoneNumber: string, messageTex
 }
 
 /**
- * Generate Gmail Web Compose URL
+ * Generate Gmail Web Compose URL (with optional CC)
  */
-export function generateGmailComposeUrl(toEmail: string, subject: string, body: string): string {
-  return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
-    toEmail
-  )}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+export function generateGmailComposeUrl(toEmail: string, subject: string, body: string, ccEmail?: string): string {
+  let url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(toEmail)}`;
+  if (ccEmail && ccEmail.trim()) {
+    url += `&cc=${encodeURIComponent(ccEmail.trim())}`;
+  }
+  url += `&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  return url;
 }
 
 /**
- * Generate Default Mailto URL
+ * Generate Default Mailto URL (with optional CC)
  */
-export function generateMailtoUrl(toEmail: string, subject: string, body: string): string {
-  return `mailto:${encodeURIComponent(toEmail)}?subject=${encodeURIComponent(
-    subject
-  )}&body=${encodeURIComponent(body)}`;
+export function generateMailtoUrl(toEmail: string, subject: string, body: string, ccEmail?: string): string {
+  const params: string[] = [];
+  if (ccEmail && ccEmail.trim()) {
+    params.push(`cc=${encodeURIComponent(ccEmail.trim())}`);
+  }
+  params.push(`subject=${encodeURIComponent(subject)}`);
+  params.push(`body=${encodeURIComponent(body)}`);
+  return `mailto:${encodeURIComponent(toEmail)}?${params.join('&')}`;
 }

@@ -1,4 +1,4 @@
-import { CompanySettings } from '../types';
+import { CompanySettings, PaymentDocumentAttachment } from '../types';
 
 /**
  * Generates a default professional email subject for payment reminder.
@@ -24,6 +24,7 @@ export function generateDefaultPaymentEmailDraft(params: {
   dueDate: string;
   jobTitle?: string;
   companySettings: CompanySettings;
+  documents?: PaymentDocumentAttachment[];
 }): string {
   const {
     customerName,
@@ -35,6 +36,7 @@ export function generateDefaultPaymentEmailDraft(params: {
     dueDate,
     jobTitle,
     companySettings,
+    documents,
   } = params;
 
   const formattedTotal = formatIndianCurrency(totalAmount);
@@ -48,6 +50,14 @@ export function generateDefaultPaymentEmailDraft(params: {
         year: 'numeric',
       })
     : 'Immediate';
+
+  const docSection =
+    documents && documents.length > 0
+      ? `\nATTACHED BILLS & INVOICE DOCUMENTS:
+---------------------------------------------
+${documents.map((d, i) => `${i + 1}. ${d.name} (${d.size || 'Attached'})`).join('\n')}
+---------------------------------------------\n`
+      : '';
 
   return `Dear ${contactPerson || customerName || 'Sir / Ma\'am'},
 
@@ -66,7 +76,7 @@ Amount Paid So Far:    ${formattedPaid}
 Outstanding Balance:   ${formattedPending}
 Payment Due Date:      ${formattedDueDate}
 ---------------------------------------------
-
+${docSection}
 Kindly arrange for the payment transfer to our official bank account as per the details below:
 
 OFFICIAL BANK TRANSFER DETAILS:
@@ -109,8 +119,9 @@ export function generateDefaultWhatsAppDraft(params: {
   pendingAmount: number;
   dueDate: string;
   companySettings: CompanySettings;
+  documents?: PaymentDocumentAttachment[];
 }): string {
-  const { customerName, contactPerson, invoiceNumber, pendingAmount, dueDate, companySettings } = params;
+  const { customerName, contactPerson, invoiceNumber, pendingAmount, dueDate, companySettings, documents } = params;
   const formattedPending = formatIndianCurrency(pendingAmount);
   const formattedDueDate = dueDate
     ? new Date(dueDate).toLocaleDateString('en-IN', {
@@ -120,6 +131,11 @@ export function generateDefaultWhatsAppDraft(params: {
       })
     : 'Immediate';
 
+  const docSection =
+    documents && documents.length > 0
+      ? `\n📎 *Attached Documents / Bills:*\n${documents.map((d, i) => `• ${d.name} (${d.size || 'Attached file'})`).join('\n')}\n`
+      : '';
+
   return `🔔 *PAYMENT REMINDER | ${companySettings.companyName}*
 
 Dear ${contactPerson || customerName},
@@ -128,7 +144,7 @@ Greetings! This is a gentle reminder regarding the outstanding balance for *Invo
 
 📌 *Outstanding Amount:* ${formattedPending}
 📅 *Due Date:* ${formattedDueDate}
-
+${docSection}
 🏦 *Bank Account Transfer:*
 • Bank: ${companySettings.bankName || 'HDFC Bank'}
 • A/C No: ${companySettings.accountNumber || '50200084920194'}

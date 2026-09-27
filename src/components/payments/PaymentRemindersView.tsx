@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
@@ -22,8 +22,10 @@ import {
   FileDown,
   FileText,
   Filter,
+  Image as ImageIcon,
   Mail,
   MessageSquare,
+  Paperclip,
   Phone,
   Plus,
   RefreshCw,
@@ -33,13 +35,14 @@ import {
   Trash2,
   TrendingDown,
   TrendingUp,
+  Upload,
   User,
   Users,
   X,
   Zap,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { ClientPaymentReminder, PaymentReminderStatus } from '../../types';
+import { ClientPaymentReminder, PaymentDocumentAttachment, PaymentReminderStatus } from '../../types';
 import {
   formatIndianCurrency,
   openInGmailWeb,
@@ -52,8 +55,11 @@ export const PaymentRemindersView: React.FC = () => {
   const {
     paymentReminders,
     deletePaymentReminder,
+    updatePaymentReminder,
     syncAndSendEmailReminder,
     sendWhatsAppReminderAction,
+    sendPaymentReminderEmail,
+    openPaymentReminderModal,
     currentUser,
     companySettings,
   } = useApp();
@@ -69,9 +75,20 @@ export const PaymentRemindersView: React.FC = () => {
   const [reminderForPaymentRecord, setReminderForPaymentRecord] = useState<ClientPaymentReminder | null>(null);
   const [expandedDraftId, setExpandedDraftId] = useState<string | null>(null);
 
-  // Copied feedback
+  // Document preview lightbox
+  const [previewDocument, setPreviewDocument] = useState<PaymentDocumentAttachment | null>(null);
+
+  // Target reminder ID for quick document upload
+  const [activeUploadReminderId, setActiveUploadReminderId] = useState<string | null>(null);
+  const cardFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Active send dropdown menu per card
+  const [openSendMenuId, setOpenSendMenuId] = useState<string | null>(null);
+
+  // Feedback state
   const [copiedDraftId, setCopiedDraftId] = useState<string | null>(null);
   const [sentToastMsg, setSentToastMsg] = useState<string | null>(null);
+  const [isDispatchingServerEmail, setIsDispatchingServerEmail] = useState<string | null>(null);
 
   const now = new Date();
   const todayStr = now.toISOString().split('T')[0];
@@ -190,6 +207,7 @@ export const PaymentRemindersView: React.FC = () => {
 
   const handleSendEmailSync = (rem: ClientPaymentReminder) => {
     syncAndSendEmailReminder(rem);
+    setOpenSendMenuId(null);
     setSentToastMsg(`Direct Mail App synced with CC for ${rem.customerName}! Check your email client.`);
     setTimeout(() => setSentToastMsg(null), 4500);
   };
@@ -201,14 +219,47 @@ export const PaymentRemindersView: React.FC = () => {
       subject: rem.emailSubject,
       body: rem.emailDraft,
     });
-    setSentToastMsg(`Opened Web Gmail compose for ${rem.customerName} with CC & draft!`);
+    setOpenSendMenuId(null);
+    setSentToastMsg(`Opened Web Gmail compose for ${rem.customerName} with CC, documents & draft!`);
     setTimeout(() => setSentToastMsg(null), 4500);
   };
 
   const handleSendWhatsAppSync = (rem: ClientPaymentReminder) => {
     sendWhatsAppReminderAction(rem);
+    setOpenSendMenuId(null);
     setSentToastMsg(`WhatsApp chat opened for ${rem.customerName}!`);
     setTimeout(() => setSentToastMsg(null), 4500);
+  };
+
+  const handleSendServerEmailDispatch = async (rem: ClientPaymentReminder) => {
+    if (!rem.contactEmail) {
+      alert('No contact email configured for this client');
+      return;
+    }
+
+    setIsDispatchingServerEmail(rem.id);
+    try {
+      const res = await sendPaymentReminderEmail({
+        toEmail: rem.contactEmail,
+        ccEmail: rem.clientCcEmails,
+        subject: rem.emailSubject,
+        body: rem.emailDraft,
+        customerName: rem.customerName,
+        invoiceNumber: rem.invoiceNumber,
+        amount: rem.pendingAmount,
+        reminderId: rem.id,
+        documents: rem.documents,
+        customerId: rem.customerId,
+      });
+
+      setSentToastMsg(res.message || `Payment Reminder email dispatched to ${rem.contactEmail}!`);
+      setTimeout(() => setSentToastMsg(null), 5000);
+    } catch (err: any) {
+      setSentToastMsg('Error dispatching email: ' + (err.message || 'Unknown error'));
+    } finally {
+      setIsDispatchingServerEmail(null);
+      setOpenSendMenuId(null);
+    }
   };
 
   const handleCopyDraft = (rem: ClientPaymentReminder) => {
@@ -216,6 +267,77 @@ export const PaymentRemindersView: React.FC = () => {
     navigator.clipboard.writeText(fullText);
     setCopiedDraftId(rem.id);
     setTimeout(() => setCopiedDraftId(null), 2500);
+  };
+
+  // Quick document upload per card
+  const triggerQuickDocUpload = (reminderId: string) => {
+    setActiveUploadReminderId(reminderId);
+    cardFileInputRef.current?.click();
+  };
+
+  const handleCardFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !activeUploadReminderId) return;
+
+    const targetReminder = paymentReminders.find((r) => r.id === activeUploadReminderId);
+    if (!targetReminder) return;
+
+    Array.from(files).forEach((file: File) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target?.result as string;
+        const extension = file.name.split('.').pop()?.toLowerCase() || '';
+        let fileType: PaymentDocumentAttachment['fileType'] = 'other';
+        if (['pdf'].includes(extension)) fileType = 'pdf';
+        else if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg'].includes(extension)) fileType = 'image';
+        else if (['doc', 'docx', 'txt', 'rtf', 'odt', 'xls', 'xlsx'].includes(extension)) fileType = 'document';
+
+        const formatSize = (bytes: number) => {
+          if (bytes < 1024) return bytes + ' B';
+          if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+          return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        };
+
+        const newDoc: PaymentDocumentAttachment = {
+          id: `doc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          name: file.name,
+          fileType,
+          dataUrl,
+          size: formatSize(file.size),
+          uploadedAt: new Date().toISOString(),
+        };
+
+        const updatedDocs = [...(targetReminder.documents || []), newDoc];
+        updatePaymentReminder(targetReminder.id, {
+          documents: updatedDocs,
+        });
+
+        setSentToastMsg(`Document "${file.name}" saved to #${targetReminder.invoiceNumber}!`);
+        setTimeout(() => setSentToastMsg(null), 4000);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    if (cardFileInputRef.current) {
+      cardFileInputRef.current.value = '';
+    }
+  };
+
+  const handleDeleteCardDoc = (reminderId: string, docId: string) => {
+    const targetReminder = paymentReminders.find((r) => r.id === reminderId);
+    if (!targetReminder) return;
+    const updatedDocs = (targetReminder.documents || []).filter((d) => d.id !== docId);
+    updatePaymentReminder(reminderId, { documents: updatedDocs });
+  };
+
+  const handleDownloadDoc = (doc: PaymentDocumentAttachment) => {
+    if (!doc.dataUrl) return;
+    const a = document.createElement('a');
+    a.href = doc.dataUrl;
+    a.download = doc.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   const getStatusBadge = (status: PaymentReminderStatus, dueDate: string, pending: number) => {
@@ -269,6 +391,16 @@ export const PaymentRemindersView: React.FC = () => {
         </div>
       )}
 
+      {/* Hidden file input for card document attachment */}
+      <input
+        ref={cardFileInputRef}
+        type="file"
+        multiple
+        accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx,.txt"
+        onChange={handleCardFileSelected}
+        className="hidden"
+      />
+
       {/* Top Header Card */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 sm:p-6 rounded-2xl border border-stone-200 shadow-xs">
         <div>
@@ -277,11 +409,11 @@ export const PaymentRemindersView: React.FC = () => {
               Client Payment Reminders &amp; Ledger
             </h1>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-              Auto Mail Sync + CC
+              Documents &amp; 1-Click Send
             </span>
           </div>
           <p className="text-xs sm:text-sm text-stone-500 mt-1 max-w-2xl leading-relaxed">
-            Configure invoices once with recipient &amp; CC emails. When you click <strong>Send Reminder</strong>, all details and drafts sync directly into your mail app without re-typing.
+            Configure invoices once with client details, CC emails, and attached documents. Click <strong>Send Reminder</strong> anytime to dispatch directly via Email or WhatsApp.
           </p>
         </div>
 
@@ -298,200 +430,160 @@ export const PaymentRemindersView: React.FC = () => {
 
       {/* Financial Analytics & KPI Dashboard Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* Total Outstanding */}
+        {/* Total Invoiced */}
         <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">
-              Total Outstanding
-            </span>
-            <div className="w-8 h-8 rounded-lg bg-red-50 text-red-600 flex items-center justify-center">
-              <TrendingDown className="w-4 h-4" />
-            </div>
+          <div className="flex items-center justify-between text-stone-500 text-xs font-bold uppercase tracking-wider">
+            <span>Total Invoiced</span>
+            <Banknote className="w-4 h-4 text-stone-400" />
           </div>
-          <div className="text-xl sm:text-2xl font-black text-red-600 mt-2">
+          <div className="text-lg sm:text-2xl font-black text-stone-900 mt-1.5 font-mono">
+            {formatIndianCurrency(metrics.totalInvoiced)}
+          </div>
+          <div className="text-[11px] text-stone-500 mt-1 flex items-center gap-1 font-medium">
+            <span>{paymentReminders.length} total reminders tracked</span>
+          </div>
+        </div>
+
+        {/* Total Outstanding Dues */}
+        <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-xs">
+          <div className="flex items-center justify-between text-red-600 text-xs font-bold uppercase tracking-wider">
+            <span>Outstanding Balance</span>
+            <AlertCircle className="w-4 h-4 text-red-500" />
+          </div>
+          <div className="text-lg sm:text-2xl font-black text-red-600 mt-1.5 font-mono">
             {formatIndianCurrency(metrics.totalOutstanding)}
           </div>
-          <div className="text-[11px] text-stone-500 mt-1 flex items-center gap-1.5">
-            <span>Across <strong>{metrics.clientsWithDuesCount}</strong> active clients</span>
+          <div className="text-[11px] text-stone-500 mt-1 font-medium">
+            Across {metrics.clientsWithDuesCount} clients with pending dues
           </div>
         </div>
 
         {/* Total Received / Collected */}
         <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">
-              Total Collected
-            </span>
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <TrendingUp className="w-4 h-4" />
-            </div>
+          <div className="flex items-center justify-between text-emerald-700 text-xs font-bold uppercase tracking-wider">
+            <span>Payments Received</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           </div>
-          <div className="text-xl sm:text-2xl font-black text-emerald-700 mt-2">
+          <div className="text-lg sm:text-2xl font-black text-emerald-700 mt-1.5 font-mono">
             {formatIndianCurrency(metrics.totalReceived)}
           </div>
-          <div className="text-[11px] text-emerald-700 font-semibold mt-1">
-            {metrics.collectionRate}% of total billed collected
+          <div className="text-[11px] text-emerald-800 mt-1 font-medium flex items-center gap-1">
+            <span className="font-bold">{metrics.collectionRate}%</span>
+            <span>collection rate ({metrics.paidCount} paid)</span>
           </div>
         </div>
 
-        {/* Overdue Payments */}
+        {/* Overdue / Urgent Alert */}
         <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">
-              Past Due Date
-            </span>
-            <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
-              <AlertTriangle className="w-4 h-4" />
-            </div>
+          <div className="flex items-center justify-between text-amber-700 text-xs font-bold uppercase tracking-wider">
+            <span>Overdue Invoices</span>
+            <Clock className="w-4 h-4 text-amber-600" />
           </div>
-          <div className="text-xl sm:text-2xl font-black text-amber-800 mt-2">
+          <div className="text-lg sm:text-2xl font-black text-amber-700 mt-1.5 font-mono">
             {formatIndianCurrency(metrics.overdueAmount)}
           </div>
-          <div className="text-[11px] text-amber-700 font-semibold mt-1">
-            {metrics.overdueCount} {metrics.overdueCount === 1 ? 'invoice overdue' : 'invoices overdue'}
-          </div>
-        </div>
-
-        {/* Total Invoiced Volume */}
-        <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">
-              Total Invoiced
-            </span>
-            <div className="w-8 h-8 rounded-lg bg-stone-100 text-stone-700 flex items-center justify-center">
-              <FileCheck className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-xl sm:text-2xl font-black text-stone-900 mt-2">
-            {formatIndianCurrency(metrics.totalInvoiced)}
-          </div>
-          <div className="text-[11px] text-stone-500 mt-1">
-            {paymentReminders.length} total tracked invoices
+          <div className="text-[11px] text-stone-500 mt-1 font-medium">
+            {metrics.overdueCount} {metrics.overdueCount === 1 ? 'bill' : 'bills'} past due date
           </div>
         </div>
       </div>
 
-      {/* Filter, Search & Status Tabs Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-xs space-y-3.5">
-        {/* Status Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-semibold no-scrollbar">
-          <button
-            onClick={() => setStatusFilter('all')}
-            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer shrink-0 ${
-              statusFilter === 'all'
-                ? 'bg-stone-900 text-white font-bold shadow-xs'
-                : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-            }`}
-          >
-            All Reminders ({paymentReminders.length})
-          </button>
-
-          <button
-            onClick={() => setStatusFilter('pending')}
-            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer shrink-0 ${
-              statusFilter === 'pending'
-                ? 'bg-amber-600 text-white font-bold shadow-xs'
-                : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-            }`}
-          >
-            Pending Dues ({paymentReminders.filter((r) => r.status === 'pending').length})
-          </button>
-
-          <button
-            onClick={() => setStatusFilter('overdue')}
-            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer shrink-0 ${
-              statusFilter === 'overdue'
-                ? 'bg-red-600 text-white font-bold shadow-xs'
-                : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-            }`}
-          >
-            Overdue ({paymentReminders.filter((r) => r.status === 'overdue' || (r.dueDate < todayStr && r.pendingAmount > 0)).length})
-          </button>
-
-          <button
-            onClick={() => setStatusFilter('partially_paid')}
-            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer shrink-0 ${
-              statusFilter === 'partially_paid'
-                ? 'bg-blue-600 text-white font-bold shadow-xs'
-                : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-            }`}
-          >
-            Partially Paid ({paymentReminders.filter((r) => r.status === 'partially_paid').length})
-          </button>
-
-          <button
-            onClick={() => setStatusFilter('paid')}
-            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer shrink-0 ${
-              statusFilter === 'paid'
-                ? 'bg-emerald-600 text-white font-bold shadow-xs'
-                : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-            }`}
-          >
-            Fully Settled ({paymentReminders.filter((r) => r.status === 'paid' || r.pendingAmount === 0).length})
-          </button>
-        </div>
-
-        {/* Search & Sort Row */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 border-t border-stone-100">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by client name, invoice number, contact person, email or CC..."
-              className="w-full pl-10 pr-4 py-2 rounded-xl border border-stone-200 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
-            />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-xs text-stone-500 font-medium">Sort:</span>
-            <select
-              value={sortBy}
-              onChange={(e: any) => setSortBy(e.target.value)}
-              className="px-3 py-2 rounded-xl border border-stone-200 bg-white text-xs font-semibold text-stone-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-            >
-              <option value="due_date_asc">📅 Due Date (Earliest First)</option>
-              <option value="due_date_desc">📅 Due Date (Latest First)</option>
-              <option value="amount_desc">💰 Outstanding Balance (High to Low)</option>
-              <option value="amount_asc">💰 Outstanding Balance (Low to High)</option>
-              <option value="client_name">🏢 Client Name (A - Z)</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Reminders List (Job-like Section View) */}
-      {filteredReminders.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-stone-200 p-8 sm:p-12 text-center space-y-4 shadow-xs">
-          <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-100">
-            <CreditCard className="w-7 h-7" />
-          </div>
-          <div className="max-w-md mx-auto">
-            <h3 className="text-base font-bold text-stone-900">No Payment Reminders Found</h3>
-            <p className="text-xs text-stone-500 mt-1 leading-relaxed">
-              {searchTerm || statusFilter !== 'all'
-                ? 'No payment reminders match your active search or filter criteria. Try resetting filters.'
-                : 'You have not created any client payment reminders yet. Click the button below to configure your first reminder with auto-draft and CC sync.'}
-            </p>
-          </div>
-          <div>
+      {/* Filter & Search Bar */}
+      <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
+        <div className="relative w-full md:w-80">
+          <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search by client, invoice, email, phone..."
+            className="w-full pl-9 pr-4 py-2 rounded-xl border border-stone-200 bg-stone-50 text-xs text-stone-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+          />
+          {searchTerm && (
             <button
-              onClick={handleOpenCreateModal}
-              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs inline-flex items-center gap-2 shadow-xs cursor-pointer transition-all hover:scale-101"
+              onClick={() => setSearchTerm('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
             >
-              <Plus className="w-4 h-4" />
-              <span>Create Client Payment Reminder</span>
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
+          {/* Status Filter Buttons */}
+          <div className="flex items-center bg-stone-100 p-1 rounded-xl text-xs font-medium">
+            <button
+              onClick={() => setStatusFilter('all')}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                statusFilter === 'all'
+                  ? 'bg-white text-stone-900 font-bold shadow-2xs'
+                  : 'text-stone-600 hover:text-stone-900'
+              }`}
+            >
+              All ({paymentReminders.length})
+            </button>
+            <button
+              onClick={() => setStatusFilter('pending')}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                statusFilter === 'pending'
+                  ? 'bg-white text-amber-900 font-bold shadow-2xs'
+                  : 'text-stone-600 hover:text-stone-900'
+              }`}
+            >
+              Pending
+            </button>
+            <button
+              onClick={() => setStatusFilter('overdue')}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                statusFilter === 'overdue'
+                  ? 'bg-white text-red-800 font-bold shadow-2xs'
+                  : 'text-stone-600 hover:text-stone-900'
+              }`}
+            >
+              Overdue ({metrics.overdueCount})
+            </button>
+            <button
+              onClick={() => setStatusFilter('paid')}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                statusFilter === 'paid'
+                  ? 'bg-white text-emerald-800 font-bold shadow-2xs'
+                  : 'text-stone-600 hover:text-stone-900'
+              }`}
+            >
+              Paid
             </button>
           </div>
+
+          {/* Sort By Dropdown */}
+          <select
+            value={sortBy}
+            onChange={(e: any) => setSortBy(e.target.value)}
+            className="px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 text-xs font-semibold text-stone-800 focus:bg-white focus:outline-none cursor-pointer"
+          >
+            <option value="due_date_asc">Sort: Due Date (Earliest)</option>
+            <option value="due_date_desc">Sort: Due Date (Latest)</option>
+            <option value="amount_desc">Sort: Pending Amount (High to Low)</option>
+            <option value="amount_asc">Sort: Pending Amount (Low to High)</option>
+            <option value="client_name">Sort: Client Name (A-Z)</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Reminders Ledger List */}
+      {filteredReminders.length === 0 ? (
+        <div className="bg-white p-12 text-center rounded-2xl border border-stone-200 shadow-xs">
+          <CreditCard className="w-12 h-12 text-stone-300 mx-auto mb-3" />
+          <h3 className="text-base font-bold text-stone-800">No payment reminders match your filter</h3>
+          <p className="text-xs text-stone-500 mt-1 max-w-sm mx-auto">
+            Create a payment reminder with client details, documents, and CC emails to start tracking receivables.
+          </p>
+          <button
+            onClick={handleOpenCreateModal}
+            className="mt-4 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Create New Reminder</span>
+          </button>
         </div>
       ) : (
         <div className="space-y-4">
@@ -499,21 +591,21 @@ export const PaymentRemindersView: React.FC = () => {
             const isExpanded = expandedDraftId === reminder.id;
             const percentPaid =
               reminder.totalAmount > 0
-                ? Math.min(100, Math.round(((reminder.paidAmount || 0) / reminder.totalAmount) * 100))
+                ? Math.min(100, Math.round((reminder.paidAmount / reminder.totalAmount) * 100))
                 : 0;
-
             const isPastDue = reminder.dueDate && reminder.dueDate < todayStr && reminder.pendingAmount > 0;
+            const docList = Array.isArray(reminder.documents) ? reminder.documents : [];
 
             return (
               <div
                 key={reminder.id}
-                className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-xs hover:border-emerald-300/80 transition-all"
+                className="bg-white rounded-2xl border border-stone-200 shadow-xs overflow-hidden transition-all hover:border-emerald-300"
               >
-                {/* Main Card Header & Row */}
+                {/* Main Card Header & Financial Summary */}
                 <div className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                  {/* Left Column: Client & Invoice Info */}
+                  {/* Left Column: Customer & Invoice Info */}
                   <div className="flex items-start gap-3.5">
-                    <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-800 shrink-0 mt-0.5">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-100 font-black text-sm">
                       <Building2 className="w-5 h-5" />
                     </div>
 
@@ -616,38 +708,101 @@ export const PaymentRemindersView: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Right Column: 1-Click Action Buttons */}
-                  <div className="flex items-center gap-2 flex-wrap self-end lg:self-center">
-                    {/* Primary Button: Send Email (Direct Mail App Sync with CC) */}
-                    <button
-                      onClick={() => handleSendEmailSync(reminder)}
-                      className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer hover:scale-101"
-                      title="Sync directly into Mail App with CC & full draft"
-                    >
-                      <Mail className="w-4 h-4 text-amber-300" />
-                      <span>Send Email Reminder</span>
-                    </button>
-
-                    {/* Secondary Email Option: Gmail Web */}
-                    <button
-                      onClick={() => handleSendGmailSync(reminder)}
-                      className="p-2 rounded-xl border border-stone-200 bg-white hover:bg-stone-50 text-stone-700 cursor-pointer transition-colors"
-                      title="Open in Gmail Web with CC & Draft"
-                    >
-                      <ExternalLink className="w-4 h-4 text-stone-600" />
-                    </button>
-
-                    {/* WhatsApp Action */}
-                    {reminder.contactMobile && (
+                  {/* Right Column: Send Actions & Management */}
+                  <div className="flex items-center gap-2 flex-wrap self-end lg:self-center relative">
+                    {/* Primary Button: Send Reminder Dropdown Menu */}
+                    <div className="relative">
                       <button
-                        onClick={() => handleSendWhatsAppSync(reminder)}
-                        className="px-3 py-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-                        title="Send via WhatsApp"
+                        onClick={() => setOpenSendMenuId(openSendMenuId === reminder.id ? null : reminder.id)}
+                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer hover:scale-101"
                       >
-                        <MessageSquare className="w-3.5 h-3.5 text-emerald-700" />
-                        <span className="hidden sm:inline">WhatsApp</span>
+                        <Send className="w-3.5 h-3.5 text-amber-300" />
+                        <span>Send Reminder</span>
+                        <ChevronDown className="w-3.5 h-3.5" />
                       </button>
-                    )}
+
+                      {/* Dropdown Menu with all dispatch channels */}
+                      {openSendMenuId === reminder.id && (
+                        <div
+                          className="absolute right-0 top-full mt-1.5 w-64 bg-white rounded-xl shadow-2xl border border-stone-200 z-30 p-2 space-y-1 animate-in fade-in zoom-in-95"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="px-2 py-1 text-[10px] font-bold text-stone-400 uppercase tracking-wider">
+                            Email Channels:
+                          </div>
+
+                          <button
+                            onClick={() => handleSendGmailSync(reminder)}
+                            className="w-full px-2.5 py-1.5 rounded-lg hover:bg-stone-50 text-left text-xs font-medium text-stone-800 flex items-center gap-2 cursor-pointer"
+                          >
+                            <Mail className="w-4 h-4 text-red-600" />
+                            <div>
+                              <p className="font-bold">1-Click Gmail Web</p>
+                              <p className="text-[10px] text-stone-500">Opens Gmail with CC &amp; doc links</p>
+                            </div>
+                          </button>
+
+                          <button
+                            onClick={() => handleSendEmailSync(reminder)}
+                            className="w-full px-2.5 py-1.5 rounded-lg hover:bg-stone-50 text-left text-xs font-medium text-stone-800 flex items-center gap-2 cursor-pointer"
+                          >
+                            <Mail className="w-4 h-4 text-blue-600" />
+                            <div>
+                              <p className="font-bold">Default Mail Client</p>
+                              <p className="text-[10px] text-stone-500">Outlook / Apple Mail (mailto:)</p>
+                            </div>
+                          </button>
+
+                          <button
+                            onClick={() => handleSendServerEmailDispatch(reminder)}
+                            disabled={isDispatchingServerEmail === reminder.id}
+                            className="w-full px-2.5 py-1.5 rounded-lg hover:bg-stone-50 text-left text-xs font-medium text-stone-800 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                          >
+                            <Send className="w-4 h-4 text-stone-700" />
+                            <div>
+                              <p className="font-bold">
+                                {isDispatchingServerEmail === reminder.id ? 'Sending...' : 'Direct Server Email'}
+                              </p>
+                              <p className="text-[10px] text-stone-500">Dispatches via server with attachments</p>
+                            </div>
+                          </button>
+
+                          <div className="px-2 py-1 text-[10px] font-bold text-stone-400 uppercase tracking-wider border-t border-stone-100 mt-1">
+                            WhatsApp Channels:
+                          </div>
+
+                          {reminder.contactMobile ? (
+                            <button
+                              onClick={() => handleSendWhatsAppSync(reminder)}
+                              className="w-full px-2.5 py-1.5 rounded-lg hover:bg-emerald-50 text-left text-xs font-medium text-emerald-900 flex items-center gap-2 cursor-pointer"
+                            >
+                              <MessageSquare className="w-4 h-4 text-emerald-600" />
+                              <div>
+                                <p className="font-bold">WhatsApp Web / App</p>
+                                <p className="text-[10px] text-stone-500">Pre-filled formatted template</p>
+                              </div>
+                            </button>
+                          ) : (
+                            <div className="px-2.5 py-1 text-[11px] text-stone-400 italic">
+                              No WhatsApp number saved
+                            </div>
+                          )}
+
+                          <div className="border-t border-stone-100 mt-1 pt-1">
+                            <button
+                              onClick={() => {
+                                handleCopyDraft(reminder);
+                                setOpenSendMenuId(null);
+                              }}
+                              className="w-full px-2.5 py-1.5 rounded-lg hover:bg-stone-50 text-left text-xs font-medium text-stone-700 flex items-center gap-2 cursor-pointer"
+                            >
+                              <Copy className="w-3.5 h-3.5 text-stone-500" />
+                              <span>Copy Full Draft</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
 
                     {/* Record Payment Button */}
                     <button
@@ -663,7 +818,7 @@ export const PaymentRemindersView: React.FC = () => {
                     <button
                       onClick={() => handleOpenEditModal(reminder)}
                       className="p-2 rounded-xl border border-stone-200 hover:bg-stone-100 text-stone-600 cursor-pointer transition-colors"
-                      title="Edit Reminder & Draft"
+                      title="Edit Reminder, Amounts, or Documents"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
@@ -694,6 +849,74 @@ export const PaymentRemindersView: React.FC = () => {
                   </div>
                 </div>
 
+                {/* ATTACHED DOCUMENTS STRIP ON EVERY CARD (Direct User Request) */}
+                <div className="px-5 py-2.5 bg-stone-50 border-t border-stone-100 flex items-center justify-between flex-wrap gap-2 text-xs">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-stone-700 flex items-center gap-1 text-[11px]">
+                      <Paperclip className="w-3.5 h-3.5 text-emerald-700" />
+                      <span>Documents &amp; Bills ({docList.length}):</span>
+                    </span>
+
+                    {docList.length === 0 ? (
+                      <span className="text-stone-400 text-[11px] italic">No document attached yet</span>
+                    ) : (
+                      docList.map((doc) => (
+                        <div
+                          key={doc.id}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-stone-200 text-stone-800 text-[11px] shadow-2xs font-medium"
+                        >
+                          {doc.fileType === 'pdf' ? (
+                            <span className="text-red-600 font-bold text-[10px]">PDF</span>
+                          ) : doc.fileType === 'image' ? (
+                            <ImageIcon className="w-3 h-3 text-emerald-600" />
+                          ) : (
+                            <FileText className="w-3 h-3 text-blue-600" />
+                          )}
+                          <span className="truncate max-w-[140px]">{doc.name}</span>
+
+                          {doc.dataUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewDocument(doc)}
+                              className="p-0.5 rounded text-stone-400 hover:text-stone-800 cursor-pointer ml-1"
+                              title="Preview"
+                            >
+                              <Eye className="w-3 h-3" />
+                            </button>
+                          )}
+                          {doc.dataUrl && (
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadDoc(doc)}
+                              className="p-0.5 rounded text-stone-400 hover:text-emerald-700 cursor-pointer"
+                              title="Download"
+                            >
+                              <Download className="w-3 h-3" />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCardDoc(reminder.id, doc.id)}
+                            className="p-0.5 rounded text-stone-300 hover:text-red-600 cursor-pointer"
+                            title="Remove Document"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => triggerQuickDocUpload(reminder.id)}
+                    className="px-2.5 py-1 rounded-lg bg-white hover:bg-stone-100 border border-stone-200 text-stone-700 font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                  >
+                    <Plus className="w-3 h-3 text-emerald-600" />
+                    <span>Attach Document</span>
+                  </button>
+                </div>
+
                 {/* Expandable Section: Email Draft & Bank Details Preview */}
                 {isExpanded && (
                   <div className="bg-stone-50/90 border-t border-stone-200 p-5 space-y-3 animate-in fade-in duration-150">
@@ -719,7 +942,7 @@ export const PaymentRemindersView: React.FC = () => {
                           className="px-2.5 py-1 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center gap-1 cursor-pointer"
                         >
                           <Edit2 className="w-3 h-3 text-emerald-700" />
-                          <span>Customize Draft</span>
+                          <span>Customize Draft &amp; Docs</span>
                         </button>
                       </div>
                     </div>
@@ -758,6 +981,59 @@ export const PaymentRemindersView: React.FC = () => {
         onClose={() => setReminderForPaymentRecord(null)}
         reminder={reminderForPaymentRecord}
       />
+
+      {/* Document Preview Lightbox Modal */}
+      {previewDocument && (
+        <div className="fixed inset-0 z-60 bg-black/70 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-3xl w-full p-4 shadow-2xl flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between pb-3 border-b border-stone-200">
+              <div className="truncate pr-2">
+                <h3 className="font-bold text-stone-900 text-sm truncate">{previewDocument.name}</h3>
+                <p className="text-[10px] text-stone-500">{previewDocument.size}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleDownloadDoc(previewDocument)}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-xs flex items-center gap-1 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download</span>
+                </button>
+                <button
+                  onClick={() => setPreviewDocument(null)}
+                  className="p-1 rounded-lg text-stone-400 hover:text-stone-800 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-auto py-4 flex items-center justify-center">
+              {previewDocument.fileType === 'image' && previewDocument.dataUrl ? (
+                <img
+                  src={previewDocument.dataUrl}
+                  alt={previewDocument.name}
+                  className="max-h-[60vh] max-w-full rounded-lg object-contain shadow-sm"
+                />
+              ) : previewDocument.fileType === 'pdf' && previewDocument.dataUrl ? (
+                <iframe
+                  src={previewDocument.dataUrl}
+                  title={previewDocument.name}
+                  className="w-full h-[60vh] rounded-lg border border-stone-200"
+                />
+              ) : (
+                <div className="text-center p-8">
+                  <FileText className="w-16 h-16 text-stone-300 mx-auto mb-2" />
+                  <p className="text-stone-700 font-bold text-sm">{previewDocument.name}</p>
+                  <p className="text-stone-400 text-xs mt-1">
+                    Preview not directly supported in-line. Please click Download to view.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

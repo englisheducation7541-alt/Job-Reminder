@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   AlertCircle,
   Banknote,
@@ -10,20 +10,31 @@ import {
   Clock,
   Copy,
   CreditCard,
+  Download,
   ExternalLink,
+  Eye,
+  FileCheck,
   FileText,
+  FileUp,
   HelpCircle,
+  Image as ImageIcon,
   Mail,
   MessageSquare,
+  Paperclip,
   Phone,
+  Plus,
+  RotateCcw,
+  Save,
   Send,
   Sparkles,
+  Trash2,
+  Upload,
   User,
   X,
   Zap,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { Customer, Job } from '../../types';
+import { Customer, Job, PaymentDocumentAttachment, ClientPaymentReminder } from '../../types';
 import {
   formatIndianCurrency,
   generateClientPaymentWhatsAppUrl,
@@ -39,6 +50,11 @@ export const ClientPaymentReminderModal: React.FC = () => {
     setIsPaymentReminderOpen,
     activeCustomerForPaymentReminder,
     activeJobForPaymentReminder,
+    editingPaymentReminder,
+    setEditingPaymentReminder,
+    paymentReminders,
+    addPaymentReminder,
+    updatePaymentReminder,
     customers,
     jobs,
     companySettings,
@@ -47,16 +63,22 @@ export const ClientPaymentReminderModal: React.FC = () => {
     sendPaymentReminderEmail,
   } = useApp();
 
+  // Saved reminder reference if editing or already saved
+  const [savedReminderId, setSavedReminderId] = useState<string | null>(null);
+
   // Selected entities
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [selectedJobId, setSelectedJobId] = useState<string>('');
 
-  // Editable fields (all auto-filled by default)
+  // Editable fields
+  const [customerName, setCustomerName] = useState('');
   const [contactPerson, setContactPerson] = useState('');
   const [contactMobile, setContactMobile] = useState('');
   const [contactEmail, setContactEmail] = useState('');
+  const [clientCcEmails, setClientCcEmails] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [amount, setAmount] = useState<number>(25000);
+  const [paidAmount, setPaidAmount] = useState<number>(0);
   const [dueDate, setDueDate] = useState<string>(() => {
     const d = new Date();
     d.setDate(d.getDate() + 3);
@@ -66,22 +88,80 @@ export const ClientPaymentReminderModal: React.FC = () => {
   const [language, setLanguage] = useState<'en' | 'hinglish' | 'hi'>('hinglish');
   const [customNote, setCustomNote] = useState('');
 
-  // Channel Tabs: WhatsApp or Email
-  const [activeChannel, setActiveChannel] = useState<'whatsapp' | 'email'>('whatsapp');
+  // Attached Documents System
+  const [documents, setDocuments] = useState<PaymentDocumentAttachment[]>([]);
+  const [previewDocument, setPreviewDocument] = useState<PaymentDocumentAttachment | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Copy & Sending Feedback states
+  // Channel Tabs: WhatsApp, Email, or Documents
+  const [activeChannel, setActiveChannel] = useState<'whatsapp' | 'email' | 'documents'>('whatsapp');
+
+  // Feedback states
   const [isCopied, setIsCopied] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [sentSuccessMsg, setSentSuccessMsg] = useState<string | null>(null);
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
+
+  const pendingAmount = Math.max(0, Number(amount || 0) - Number(paidAmount || 0));
 
   // Sync state when modal opens or active targets change
   useEffect(() => {
     if (!isPaymentReminderOpen) {
       setSentSuccessMsg(null);
+      setSaveSuccessMsg(null);
       return;
     }
 
-    // 1. Determine Customer
+    // A. If an existing reminder was passed for editing
+    if (editingPaymentReminder) {
+      setSavedReminderId(editingPaymentReminder.id);
+      setSelectedCustomerId(editingPaymentReminder.customerId || '');
+      setCustomerName(editingPaymentReminder.customerName || '');
+      setContactPerson(editingPaymentReminder.contactPerson || '');
+      setContactMobile(editingPaymentReminder.contactMobile || '');
+      setContactEmail(editingPaymentReminder.contactEmail || '');
+      setClientCcEmails(editingPaymentReminder.clientCcEmails || '');
+      setSelectedJobId(editingPaymentReminder.jobId || '');
+      setInvoiceNumber(editingPaymentReminder.invoiceNumber || '');
+      setAmount(editingPaymentReminder.totalAmount || 0);
+      setPaidAmount(editingPaymentReminder.paidAmount || 0);
+      setDueDate(editingPaymentReminder.dueDate || '');
+      setCustomNote(editingPaymentReminder.notes || '');
+      setDocuments(Array.isArray(editingPaymentReminder.documents) ? editingPaymentReminder.documents : []);
+      return;
+    }
+
+    // B. Check if there is an existing saved reminder for the target job or customer
+    let matchedReminder: ClientPaymentReminder | undefined;
+    if (activeJobForPaymentReminder) {
+      matchedReminder = paymentReminders.find((r) => r.jobId === activeJobForPaymentReminder.id);
+    } else if (activeCustomerForPaymentReminder) {
+      matchedReminder = paymentReminders.find((r) => r.customerId === activeCustomerForPaymentReminder.id);
+    }
+
+    if (matchedReminder) {
+      setSavedReminderId(matchedReminder.id);
+      setSelectedCustomerId(matchedReminder.customerId || '');
+      setCustomerName(matchedReminder.customerName || '');
+      setContactPerson(matchedReminder.contactPerson || '');
+      setContactMobile(matchedReminder.contactMobile || '');
+      setContactEmail(matchedReminder.contactEmail || '');
+      setClientCcEmails(matchedReminder.clientCcEmails || '');
+      setSelectedJobId(matchedReminder.jobId || '');
+      setInvoiceNumber(matchedReminder.invoiceNumber || '');
+      setAmount(matchedReminder.totalAmount || 0);
+      setPaidAmount(matchedReminder.paidAmount || 0);
+      setDueDate(matchedReminder.dueDate || '');
+      setCustomNote(matchedReminder.notes || '');
+      setDocuments(Array.isArray(matchedReminder.documents) ? matchedReminder.documents : []);
+      return;
+    }
+
+    // C. Brand new reminder creation / prefill
+    setSavedReminderId(null);
+    setDocuments([]);
+
     let targetCustomer = activeCustomerForPaymentReminder;
     if (!targetCustomer && activeJobForPaymentReminder) {
       targetCustomer = customers.find((c) => c.id === activeJobForPaymentReminder.customerId) || null;
@@ -92,12 +172,13 @@ export const ClientPaymentReminderModal: React.FC = () => {
 
     if (targetCustomer) {
       setSelectedCustomerId(targetCustomer.id);
+      setCustomerName(targetCustomer.companyName || '');
       setContactPerson(targetCustomer.contactPerson || '');
       setContactMobile(targetCustomer.whatsapp || targetCustomer.mobile || '');
       setContactEmail(targetCustomer.email || '');
+      setClientCcEmails('');
     }
 
-    // 2. Determine Job
     if (activeJobForPaymentReminder) {
       setSelectedJobId(activeJobForPaymentReminder.id);
       setInvoiceNumber(
@@ -105,6 +186,9 @@ export const ClientPaymentReminderModal: React.FC = () => {
           ? `INV-${activeJobForPaymentReminder.jobId.replace('JR-', '')}`
           : `INV-${Date.now().toString().slice(-4)}`
       );
+      if (activeJobForPaymentReminder.dueDate) {
+        setDueDate(activeJobForPaymentReminder.dueDate);
+      }
       if (activeJobForPaymentReminder.title.toLowerCase().includes('payment')) {
         setAmount(35000);
       }
@@ -118,7 +202,7 @@ export const ClientPaymentReminderModal: React.FC = () => {
         setInvoiceNumber(`INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
       }
     }
-  }, [isPaymentReminderOpen, activeCustomerForPaymentReminder, activeJobForPaymentReminder, customers, jobs]);
+  }, [isPaymentReminderOpen, activeCustomerForPaymentReminder, activeJobForPaymentReminder, editingPaymentReminder, customers, jobs, paymentReminders]);
 
   // When customer dropdown changes, auto-fill all corresponding details
   const handleCustomerChange = (custId: string) => {
@@ -126,6 +210,7 @@ export const ClientPaymentReminderModal: React.FC = () => {
     const cust = customers.find((c) => c.id === custId);
     if (!cust) return;
 
+    setCustomerName(cust.companyName || '');
     setContactPerson(cust.contactPerson || '');
     setContactMobile(cust.whatsapp || cust.mobile || '');
     setContactEmail(cust.email || '');
@@ -156,24 +241,23 @@ export const ClientPaymentReminderModal: React.FC = () => {
 
   // Current active customer object
   const currentCustomer = useMemo(() => {
-    return (
-      customers.find((c) => c.id === selectedCustomerId) ||
-      customers[0] || {
-        id: 'cust_default',
-        companyName: 'Valued Client',
-        contactPerson: 'Manager',
-        mobile: '+91 98999 11111',
-        whatsapp: '+91 98999 11111',
-        email: 'client@example.com',
-        address: 'Delhi NCR',
-        city: 'Delhi',
-        state: 'Delhi',
-        customerType: 'Commercial',
-        sites: [],
-        createdAt: '',
-      }
-    );
-  }, [customers, selectedCustomerId]);
+    const found = customers.find((c) => c.id === selectedCustomerId);
+    if (found) return found;
+    return {
+      id: selectedCustomerId || 'cust_custom',
+      companyName: customerName || 'Valued Client',
+      contactPerson: contactPerson || 'Manager',
+      mobile: contactMobile || '+91 98999 11111',
+      whatsapp: contactMobile || '+91 98999 11111',
+      email: contactEmail || 'client@example.com',
+      address: 'Delhi NCR',
+      city: 'Delhi',
+      state: 'Delhi',
+      customerType: 'Commercial',
+      sites: [],
+      createdAt: '',
+    };
+  }, [customers, selectedCustomerId, customerName, contactPerson, contactMobile, contactEmail]);
 
   // Current active job object
   const currentJob = useMemo(() => {
@@ -188,13 +272,15 @@ export const ClientPaymentReminderModal: React.FC = () => {
       contactPerson,
       contactMobile,
       contactEmail,
+      clientCcEmails,
       invoiceNumber: invoiceNumber || 'INV-2026-0101',
-      amount: Number(amount) || 0,
+      amount: pendingAmount,
       dueDate,
       tone,
       language,
       companySettings,
       customNote,
+      documents,
     };
   }, [
     currentCustomer,
@@ -202,13 +288,15 @@ export const ClientPaymentReminderModal: React.FC = () => {
     contactPerson,
     contactMobile,
     contactEmail,
+    clientCcEmails,
     invoiceNumber,
-    amount,
+    pendingAmount,
     dueDate,
     tone,
     language,
     companySettings,
     customNote,
+    documents,
   ]);
 
   // Generated WhatsApp & Email Content
@@ -225,12 +313,12 @@ export const ClientPaymentReminderModal: React.FC = () => {
   }, [contactMobile, whatsappMessage]);
 
   const gmailWebUrl = useMemo(() => {
-    return generateGmailComposeUrl(emailData.recipientEmail, emailData.subject, emailData.body);
-  }, [emailData]);
+    return generateGmailComposeUrl(emailData.recipientEmail, emailData.subject, emailData.body, clientCcEmails);
+  }, [emailData, clientCcEmails]);
 
   const mailtoUrl = useMemo(() => {
-    return generateMailtoUrl(emailData.recipientEmail, emailData.subject, emailData.body);
-  }, [emailData]);
+    return generateMailtoUrl(emailData.recipientEmail, emailData.subject, emailData.body, clientCcEmails);
+  }, [emailData, clientCcEmails]);
 
   // Copy handler
   const handleCopy = (text: string) => {
@@ -239,9 +327,180 @@ export const ClientPaymentReminderModal: React.FC = () => {
     setTimeout(() => setIsCopied(false), 2000);
   };
 
+  // File Upload Handler (PDF, Image, Document)
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    Array.from(files).forEach((file: File) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target?.result as string;
+        const extension = file.name.split('.').pop()?.toLowerCase() || '';
+        let fileType: PaymentDocumentAttachment['fileType'] = 'other';
+        if (['pdf'].includes(extension)) fileType = 'pdf';
+        else if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg'].includes(extension)) fileType = 'image';
+        else if (['doc', 'docx', 'txt', 'rtf', 'odt', 'xls', 'xlsx'].includes(extension)) fileType = 'document';
+
+        const formatSize = (bytes: number) => {
+          if (bytes < 1024) return bytes + ' B';
+          if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+          return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        };
+
+        const newDoc: PaymentDocumentAttachment = {
+          id: `doc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          name: file.name,
+          fileType,
+          dataUrl,
+          size: formatSize(file.size),
+          uploadedAt: new Date().toISOString(),
+        };
+
+        setDocuments((prev) => [...prev, newDoc]);
+        setSaveSuccessMsg(`Added document: ${file.name}. Click "Save Reminder" to store permanently.`);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Remove document
+  const handleRemoveDocument = (docId: string) => {
+    setDocuments((prev) => prev.filter((d) => d.id !== docId));
+  };
+
+  // Import photos / files from linked job if available
+  const handleImportJobDocuments = () => {
+    if (!currentJob) return;
+    const addedDocs: PaymentDocumentAttachment[] = [];
+
+    if (Array.isArray(currentJob.photos) && currentJob.photos.length > 0) {
+      currentJob.photos.forEach((photoUrl: string, idx: number) => {
+        addedDocs.push({
+          id: `doc_job_${currentJob.id}_photo_${idx}_${Date.now()}`,
+          name: `Job_${currentJob.jobId}_Photo_${idx + 1}.jpg`,
+          fileType: 'image',
+          dataUrl: photoUrl,
+          size: 'Job Attached Photo',
+          uploadedAt: new Date().toISOString(),
+        });
+      });
+    }
+
+    if (addedDocs.length > 0) {
+      setDocuments((prev) => [...prev, ...addedDocs]);
+      setSaveSuccessMsg(`Imported ${addedDocs.length} job attachment(s)! Click "Save Reminder" to store.`);
+    } else {
+      setSaveSuccessMsg('No photos or documents attached to the selected job.');
+    }
+  };
+
+  // Download document
+  const handleDownloadDoc = (doc: PaymentDocumentAttachment) => {
+    if (!doc.dataUrl) return;
+    const a = document.createElement('a');
+    a.href = doc.dataUrl;
+    a.download = doc.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  // Core Save Logic: Saves all details and documents to state, storage & server
+  const handleSaveReminder = (options?: { silent?: boolean }): string => {
+    if (!customerName.trim()) {
+      alert('Please enter or select a customer name');
+      return '';
+    }
+    if (!invoiceNumber.trim()) {
+      alert('Please enter an invoice number');
+      return '';
+    }
+    if (!contactEmail.trim() && !contactMobile.trim()) {
+      alert('Please enter at least an email address or WhatsApp mobile number');
+      return '';
+    }
+
+    setIsSaving(true);
+
+    const status =
+      pendingAmount <= 0
+        ? 'paid'
+        : paidAmount > 0
+        ? 'partially_paid'
+        : new Date(dueDate) < new Date(new Date().setHours(0, 0, 0, 0))
+        ? 'overdue'
+        : 'pending';
+
+    const reminderPayload = {
+      customerId: selectedCustomerId || `cust_manual_${Date.now()}`,
+      customerName: customerName.trim(),
+      contactPerson: contactPerson.trim(),
+      contactMobile: contactMobile.trim(),
+      contactEmail: contactEmail.trim(),
+      clientCcEmails: clientCcEmails.trim(),
+      jobId: selectedJobId || undefined,
+      jobTitle: currentJob?.title || undefined,
+      invoiceNumber: invoiceNumber.trim(),
+      totalAmount: Number(amount),
+      paidAmount: Number(paidAmount || 0),
+      pendingAmount,
+      dueDate,
+      status,
+      emailSubject: emailData.subject,
+      emailDraft: emailData.body,
+      whatsappDraft: whatsappMessage,
+      documents,
+      notes: customNote.trim() || undefined,
+      remindersCount: 0,
+    };
+
+    let targetId = savedReminderId;
+
+    if (savedReminderId) {
+      updatePaymentReminder(savedReminderId, reminderPayload);
+    } else {
+      // Check if an existing reminder with this invoice exists
+      const existing = paymentReminders.find((r) => r.invoiceNumber === invoiceNumber.trim());
+      if (existing) {
+        updatePaymentReminder(existing.id, reminderPayload);
+        targetId = existing.id;
+        setSavedReminderId(existing.id);
+      } else {
+        targetId = `pay_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+        addPaymentReminder({
+          ...reminderPayload,
+        });
+        setSavedReminderId(targetId);
+      }
+    }
+
+    setIsSaving(false);
+
+    if (!options?.silent) {
+      setSaveSuccessMsg(
+        `✅ Client Payment Reminder #${invoiceNumber} for ${customerName} saved successfully (${documents.length} document(s) attached)! You can send anytime via Email or WhatsApp.`
+      );
+      setTimeout(() => setSaveSuccessMsg(null), 6000);
+    }
+
+    return targetId || '';
+  };
+
   // Direct WhatsApp Cloud API Send
   const handleSendViaWhatsAppApi = async () => {
-    if (!contactMobile) return;
+    if (!contactMobile) {
+      alert('Please enter a WhatsApp number');
+      return;
+    }
+
+    // Auto-save first
+    const remId = handleSaveReminder({ silent: true });
+
     setIsSending(true);
     try {
       await sendWhatsAppMessage(
@@ -251,30 +510,60 @@ export const ClientPaymentReminderModal: React.FC = () => {
         currentCustomer.id,
         'CLIENT_PAYMENT_REMINDER'
       );
-      setSentSuccessMsg(`WhatsApp Payment Reminder successfully sent to ${currentCustomer.companyName} (${contactMobile})!`);
+
+      if (remId) {
+        updatePaymentReminder(remId, {
+          remindersCount: ((paymentReminders.find((r) => r.id === remId)?.remindersCount || 0) + 1),
+          lastReminderSentAt: new Date().toISOString(),
+          lastReminderChannel: 'whatsapp',
+        });
+      }
+
+      setSentSuccessMsg(`WhatsApp Payment Reminder successfully sent to ${customerName} (${contactMobile})!`);
+      setTimeout(() => setSentSuccessMsg(null), 5000);
     } catch (err: any) {
-      setSentSuccessMsg('Error sending message: ' + (err.message || 'Unknown error'));
+      setSentSuccessMsg('Error sending WhatsApp: ' + (err.message || 'Unknown error'));
     } finally {
       setIsSending(false);
     }
   };
 
-  // Direct Email Send & Log
+  // Direct Email Send API
   const handleSendViaEmailApi = async () => {
-    if (!contactEmail) return;
+    if (!contactEmail) {
+      alert('Please enter a recipient email address');
+      return;
+    }
+
+    // Auto-save first
+    const remId = handleSaveReminder({ silent: true });
+
     setIsSending(true);
     try {
       const res = await sendPaymentReminderEmail({
         toEmail: contactEmail,
+        ccEmail: clientCcEmails,
         subject: emailData.subject,
         body: emailData.body,
-        customerName: currentCustomer.companyName,
+        customerName: customerName || currentCustomer.companyName,
         invoiceNumber,
-        amount: Number(amount) || 0,
+        amount: pendingAmount,
         jobId: currentJob?.id,
         customerId: currentCustomer.id,
+        reminderId: remId || undefined,
+        documents,
       });
-      setSentSuccessMsg(res.message || `Payment Reminder email sent to ${contactEmail}!`);
+
+      if (remId) {
+        updatePaymentReminder(remId, {
+          remindersCount: ((paymentReminders.find((r) => r.id === remId)?.remindersCount || 0) + 1),
+          lastReminderSentAt: new Date().toISOString(),
+          lastReminderChannel: 'email',
+        });
+      }
+
+      setSentSuccessMsg(res.message || `Payment Reminder email dispatched to ${contactEmail}!`);
+      setTimeout(() => setSentSuccessMsg(null), 5000);
     } catch (err: any) {
       setSentSuccessMsg('Error sending email: ' + (err.message || 'Unknown error'));
     } finally {
@@ -282,49 +571,90 @@ export const ClientPaymentReminderModal: React.FC = () => {
     }
   };
 
+  // 1-Click Gmail Send: Auto-saves and opens Gmail compose
+  const handleSendViaGmail = () => {
+    handleSaveReminder({ silent: true });
+    window.open(gmailWebUrl, '_blank', 'noopener,noreferrer');
+    setSentSuccessMsg(`Opened Gmail Web Compose for ${customerName} with documents list & draft pre-filled!`);
+    setTimeout(() => setSentSuccessMsg(null), 4500);
+  };
+
+  // 1-Click WhatsApp Web Send: Auto-saves and opens WhatsApp
+  const handleSendViaWhatsAppWeb = () => {
+    handleSaveReminder({ silent: true });
+    window.open(whatsappWebUrl, '_blank', 'noopener,noreferrer');
+    setSentSuccessMsg(`Opened WhatsApp Web for ${customerName} (${contactMobile}) with pre-filled reminder!`);
+    setTimeout(() => setSentSuccessMsg(null), 4500);
+  };
+
   if (!isPaymentReminderOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4">
-      <div className="bg-white rounded-2xl max-w-4xl w-full shadow-2xl border border-stone-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[92vh]">
+      <div className="bg-white rounded-2xl max-w-5xl w-full shadow-2xl border border-stone-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[94vh]">
         {/* Header */}
-        <div className="px-5 py-4 bg-gradient-to-r from-emerald-600 via-teal-700 to-emerald-800 text-white flex items-center justify-between shrink-0 shadow-sm">
+        <div className="px-5 py-4 bg-gradient-to-r from-emerald-700 via-teal-800 to-emerald-900 text-white flex items-center justify-between shrink-0 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center shadow-inner">
               <CreditCard className="w-5 h-5 text-amber-300" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="font-extrabold text-base sm:text-lg tracking-tight">
                   Client Payment Reminder (क्लाइंट पेमेंट रिमाइंडर)
                 </h2>
-                <span className="bg-amber-400/25 border border-amber-300/40 text-amber-200 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full">
-                  Auto-Fill Enabled
-                </span>
+                {savedReminderId ? (
+                  <span className="bg-emerald-400/25 border border-emerald-300/40 text-emerald-200 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-300" />
+                    Saved in Ledger
+                  </span>
+                ) : (
+                  <span className="bg-amber-400/25 border border-amber-300/40 text-amber-200 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full">
+                    Auto-Fill Ready
+                  </span>
+                )}
               </div>
               <p className="text-xs text-emerald-100/90 mt-0.5">
-                Dispatch official payment reminders to clients via WhatsApp &amp; Email with 1-click auto-filled details.
+                Save client details &amp; documents once. Send payment reminders anytime via WhatsApp or Email without re-typing.
               </p>
             </div>
           </div>
           <button
-            onClick={() => setIsPaymentReminderOpen(false)}
+            onClick={() => {
+              setIsPaymentReminderOpen(false);
+              setEditingPaymentReminder(null);
+            }}
             className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Success Alert Banner */}
-        {sentSuccessMsg && (
+        {/* Success Alert Banners */}
+        {saveSuccessMsg && (
           <div className="bg-emerald-50 border-b border-emerald-200 px-5 py-2.5 text-xs text-emerald-900 flex items-center justify-between shrink-0 animate-in fade-in">
-            <div className="flex items-center gap-2 font-medium">
+            <div className="flex items-center gap-2 font-semibold">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{saveSuccessMsg}</span>
+            </div>
+            <button
+              onClick={() => setSaveSuccessMsg(null)}
+              className="text-emerald-700 hover:text-emerald-900 text-xs font-bold underline cursor-pointer"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        {sentSuccessMsg && (
+          <div className="bg-teal-50 border-b border-teal-200 px-5 py-2.5 text-xs text-teal-900 flex items-center justify-between shrink-0 animate-in fade-in">
+            <div className="flex items-center gap-2 font-semibold">
+              <Sparkles className="w-4 h-4 text-teal-600 shrink-0" />
               <span>{sentSuccessMsg}</span>
             </div>
             <button
               onClick={() => setSentSuccessMsg(null)}
-              className="text-emerald-700 hover:text-emerald-900 text-xs font-bold underline cursor-pointer"
+              className="text-teal-700 hover:text-teal-900 text-xs font-bold underline cursor-pointer"
             >
               Dismiss
             </button>
@@ -333,9 +663,9 @@ export const ClientPaymentReminderModal: React.FC = () => {
 
         {/* Modal Body: Split Screen Form & Live Preview */}
         <div className="flex-1 overflow-y-auto grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-stone-200">
-          {/* Left Column: Form & Auto-filled parameters (7 Cols) */}
+          {/* Left Column: Form & Document Upload (6 Cols) */}
           <div className="lg:col-span-6 p-4 sm:p-5 space-y-4 overflow-y-auto">
-            {/* Customer Selection */}
+            {/* Customer Selection & Client Name */}
             <div>
               <label className="block text-xs font-bold text-stone-700 mb-1 flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
@@ -357,6 +687,20 @@ export const ClientPaymentReminderModal: React.FC = () => {
               </select>
             </div>
 
+            {/* Editable Company / Client Name */}
+            <div>
+              <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                Client / Company Name (बिलिंग नाम):
+              </label>
+              <input
+                type="text"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="e.g. Apex Health Systems Pvt Ltd"
+                className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 text-xs font-semibold text-stone-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+              />
+            </div>
+
             {/* Associated Job / Service Order */}
             <div>
               <label className="block text-xs font-bold text-stone-700 mb-1 flex items-center justify-between">
@@ -373,7 +717,7 @@ export const ClientPaymentReminderModal: React.FC = () => {
               >
                 <option value="">-- None (General Outstanding Bill / Retainer) --</option>
                 {jobs
-                  .filter((j) => j.customerId === selectedCustomerId)
+                  .filter((j) => !selectedCustomerId || j.customerId === selectedCustomerId)
                   .map((j) => (
                     <option key={j.id} value={j.id}>
                       📋 {j.jobId}: {j.title} ({j.status.toUpperCase()})
@@ -413,7 +757,7 @@ export const ClientPaymentReminderModal: React.FC = () => {
               </div>
             </div>
 
-            {/* Email Address & Invoice Ref */}
+            {/* Email Address & CC Emails */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] font-bold text-stone-700 mb-1 flex items-center gap-1">
@@ -430,6 +774,26 @@ export const ClientPaymentReminderModal: React.FC = () => {
               </div>
 
               <div>
+                <label className="block text-[11px] font-bold text-stone-700 mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <Mail className="w-3 h-3 text-purple-600" />
+                    CC Emails (Optional):
+                  </span>
+                  <span className="text-[10px] text-stone-400 font-normal">Comma-separated</span>
+                </label>
+                <input
+                  type="text"
+                  value={clientCcEmails}
+                  onChange={(e) => setClientCcEmails(e.target.value)}
+                  placeholder="accounts@client.com, gm@client.com"
+                  className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 text-xs text-stone-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                />
+              </div>
+            </div>
+
+            {/* Invoice Number, Total Amount & Paid Amount */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 bg-stone-50 p-3 rounded-xl border border-stone-200">
+              <div>
                 <label className="block text-[11px] font-bold text-stone-700 mb-1 flex items-center gap-1">
                   <FileText className="w-3 h-3 text-amber-600" />
                   Invoice / Bill No:
@@ -439,21 +803,15 @@ export const ClientPaymentReminderModal: React.FC = () => {
                   value={invoiceNumber}
                   onChange={(e) => setInvoiceNumber(e.target.value)}
                   placeholder="INV-2026-0101"
-                  className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 text-xs font-mono font-bold text-stone-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-stone-200 bg-white text-xs font-mono font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
                 />
               </div>
-            </div>
 
-            {/* Outstanding Amount & Due Date */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-stone-50 p-3 rounded-xl border border-stone-200">
               <div>
                 <label className="block text-[11px] font-bold text-stone-700 mb-1 flex items-center justify-between">
                   <span className="flex items-center gap-1">
                     <Banknote className="w-3 h-3 text-emerald-600" />
-                    Bill Amount (₹):
-                  </span>
-                  <span className="font-mono font-extrabold text-xs text-emerald-700">
-                    {formatIndianCurrency(Number(amount) || 0)}
+                    Total Bill (₹):
                   </span>
                 </label>
                 <input
@@ -463,25 +821,45 @@ export const ClientPaymentReminderModal: React.FC = () => {
                   min="0"
                   step="500"
                   placeholder="25000"
-                  className="w-full px-3 py-2 rounded-lg border border-stone-200 bg-white text-xs font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-stone-200 bg-white text-xs font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
                 />
-                {/* Quick amount pills */}
-                <div className="flex items-center gap-1 mt-1.5 flex-wrap">
-                  {[10000, 25000, 45000, 75000].map((val) => (
-                    <button
-                      key={val}
-                      type="button"
-                      onClick={() => setAmount(val)}
-                      className={`text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors cursor-pointer ${
-                        amount === val
-                          ? 'bg-emerald-600 text-white font-bold'
-                          : 'bg-stone-200 text-stone-700 hover:bg-stone-300'
-                      }`}
-                    >
-                      ₹{(val / 1000).toFixed(0)}k
-                    </button>
-                  ))}
-                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-stone-700 mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-blue-600" />
+                    Paid So Far (₹):
+                  </span>
+                </label>
+                <input
+                  type="number"
+                  value={paidAmount}
+                  onChange={(e) => setPaidAmount(Number(e.target.value))}
+                  min="0"
+                  step="500"
+                  placeholder="0"
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-stone-200 bg-white text-xs font-bold text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
+                />
+              </div>
+            </div>
+
+            {/* Outstanding Balance & Due Date Banner */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-emerald-50/70 p-3 rounded-xl border border-emerald-200">
+              <div className="flex flex-col justify-center">
+                <span className="text-[11px] font-bold text-emerald-900">
+                  Pending Balance to Collect:
+                </span>
+                <span className="text-base font-extrabold text-emerald-800 font-mono">
+                  {formatIndianCurrency(pendingAmount)}
+                </span>
+                <span className="text-[10px] text-emerald-700">
+                  {pendingAmount <= 0
+                    ? 'Fully Paid'
+                    : paidAmount > 0
+                    ? `Partially Paid (${formatIndianCurrency(paidAmount)} paid)`
+                    : 'Full payment pending'}
+                </span>
               </div>
 
               <div>
@@ -493,9 +871,133 @@ export const ClientPaymentReminderModal: React.FC = () => {
                   type="date"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-stone-200 bg-white text-xs font-medium text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                  className="w-full px-3 py-1.5 rounded-lg border border-stone-200 bg-white text-xs font-medium text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
                 />
               </div>
+            </div>
+
+            {/* DOCUMENT ATTACHMENT SECTION (Core User Request) */}
+            <div className="bg-stone-50 border border-stone-200 rounded-xl p-3.5 space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <Paperclip className="w-4 h-4 text-emerald-700" />
+                  <span className="text-xs font-bold text-stone-800">
+                    Attached Documents &amp; Bills (दस्तावेज़ और इनवॉइस कॉपी):
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    {documents.length} File{documents.length === 1 ? '' : 's'}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  {currentJob && (
+                    <button
+                      type="button"
+                      onClick={handleImportJobDocuments}
+                      className="px-2 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                      title="Attach completion photos and files from this job"
+                    >
+                      <Sparkles className="w-3 h-3 text-teal-600" />
+                      <span>Attach Job Docs</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Upload Document / Bill</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Hidden File Input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx,.txt"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+
+              {/* Document List */}
+              {documents.length === 0 ? (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-2 border-dashed border-stone-300 hover:border-emerald-500 rounded-xl p-3 text-center cursor-pointer bg-white transition-colors"
+                >
+                  <Upload className="w-5 h-5 text-stone-400 mx-auto mb-1" />
+                  <p className="text-[11px] font-bold text-stone-700">
+                    Click to attach Invoice PDF, Bill, Work Order, or Proof of Service
+                  </p>
+                  <p className="text-[10px] text-stone-400 mt-0.5">
+                    Saved documents will be attached in emails and referenced in WhatsApp automatically.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                  {documents.map((doc) => (
+                    <div
+                      key={doc.id}
+                      className="flex items-center justify-between bg-white px-3 py-2 rounded-lg border border-stone-200 text-xs shadow-2xs group hover:border-emerald-300 transition-colors"
+                    >
+                      <div className="flex items-center gap-2 truncate mr-2">
+                        {doc.fileType === 'pdf' ? (
+                          <div className="w-6 h-6 rounded bg-red-100 text-red-700 flex items-center justify-center font-bold text-[10px] shrink-0">
+                            PDF
+                          </div>
+                        ) : doc.fileType === 'image' ? (
+                          <div className="w-6 h-6 rounded bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                            <ImageIcon className="w-3.5 h-3.5" />
+                          </div>
+                        ) : (
+                          <div className="w-6 h-6 rounded bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                            <FileText className="w-3.5 h-3.5" />
+                          </div>
+                        )}
+                        <div className="truncate">
+                          <p className="font-semibold text-stone-900 truncate text-[11px]">{doc.name}</p>
+                          <p className="text-[10px] text-stone-400">{doc.size || 'Attached file'}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        {doc.dataUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewDocument(doc)}
+                            className="p-1 rounded text-stone-500 hover:text-stone-900 hover:bg-stone-100 cursor-pointer"
+                            title="Preview Document"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {doc.dataUrl && (
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadDoc(doc)}
+                            className="p-1 rounded text-stone-500 hover:text-emerald-700 hover:bg-stone-100 cursor-pointer"
+                            title="Download Document"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveDocument(doc.id)}
+                          className="p-1 rounded text-stone-400 hover:text-red-600 hover:bg-red-50 cursor-pointer"
+                          title="Remove Document"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Reminder Tone & Language */}
@@ -583,37 +1085,38 @@ export const ClientPaymentReminderModal: React.FC = () => {
               </div>
             </div>
 
-            {/* Auto-filled Bank & UPI Information Banner */}
-            <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3 text-xs">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="font-bold text-emerald-950 flex items-center gap-1.5">
-                  <Banknote className="w-3.5 h-3.5 text-emerald-700" />
-                  Auto-Filled Bank &amp; UPI Details ({companySettings?.companyName || 'Abhimanyu'}):
-                </span>
-                <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-100/70 px-1.5 py-0.5 rounded">
-                  Included in Message
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-emerald-900">
-                <div>• Bank: <strong className="font-semibold">{companySettings?.bankName || 'State Bank of India'}</strong></div>
-                <div>• A/c: <strong className="font-mono">{companySettings?.accountNumber || '38920192847'}</strong></div>
-                <div>• IFSC: <strong className="font-mono">{companySettings?.ifscCode || 'SBIN0001234'}</strong></div>
-                <div>• UPI ID: <strong className="font-mono text-emerald-800">{companySettings?.upiId || '7541882104@upi'}</strong></div>
-              </div>
-            </div>
-
-            {/* Custom Notes / Remark */}
+            {/* Custom Notes / Instructions */}
             <div>
               <label className="block text-[11px] font-bold text-stone-700 mb-1">
-                Custom Instruction or Note (Optional):
+                Special Instructions / Remarks (Optional):
               </label>
               <input
                 type="text"
                 value={customNote}
                 onChange={(e) => setCustomNote(e.target.value)}
-                placeholder="e.g. Please deduct 2% TDS as applicable and email deduction certificate."
+                placeholder="e.g. Please deduct 2% TDS and email deduction certificate."
                 className="w-full px-3 py-1.5 rounded-xl border border-stone-200 bg-stone-50 text-xs text-stone-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
               />
+            </div>
+
+            {/* PRIMARY SAVE ACTION BUTTON (Directly fixes User Issue 1) */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => handleSaveReminder()}
+                disabled={isSaving}
+                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer active:scale-98"
+              >
+                <Save className="w-4 h-4 text-amber-300" />
+                <span>
+                  {savedReminderId
+                    ? 'Save Updated Client Details & Documents (अपडेट सेव करें)'
+                    : 'Save Client Payment Reminder (डिटेल्स और डाक्यूमेंट्स सेव करें)'}
+                </span>
+              </button>
+              <p className="text-[11px] text-stone-500 text-center mt-1.5">
+                Saving will store this client reminder and all attached documents permanently so you can send anytime.
+              </p>
             </div>
           </div>
 
@@ -621,7 +1124,7 @@ export const ClientPaymentReminderModal: React.FC = () => {
           <div className="lg:col-span-6 p-4 sm:p-5 bg-stone-50 flex flex-col justify-between overflow-y-auto">
             <div>
               {/* Channel Selector Toggle */}
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                 <div className="flex items-center bg-stone-200/80 p-1 rounded-xl">
                   <button
                     type="button"
@@ -633,7 +1136,7 @@ export const ClientPaymentReminderModal: React.FC = () => {
                     }`}
                   >
                     <MessageSquare className="w-3.5 h-3.5" />
-                    <span>WhatsApp Reminder</span>
+                    <span>WhatsApp</span>
                   </button>
 
                   <button
@@ -646,13 +1149,28 @@ export const ClientPaymentReminderModal: React.FC = () => {
                     }`}
                   >
                     <Mail className="w-3.5 h-3.5" />
-                    <span>Email Reminder</span>
+                    <span>Email Draft</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveChannel('documents')}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      activeChannel === 'documents'
+                        ? 'bg-purple-600 text-white shadow-xs'
+                        : 'text-stone-700 hover:text-stone-900'
+                    }`}
+                  >
+                    <Paperclip className="w-3.5 h-3.5" />
+                    <span>Docs ({documents.length})</span>
                   </button>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => handleCopy(activeChannel === 'whatsapp' ? whatsappMessage : emailData.body)}
+                  onClick={() =>
+                    handleCopy(activeChannel === 'whatsapp' ? whatsappMessage : emailData.body)
+                  }
                   className="flex items-center gap-1 text-xs text-stone-600 hover:text-stone-900 bg-white border border-stone-200 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer shadow-2xs"
                   title="Copy full message to clipboard"
                 >
@@ -668,14 +1186,15 @@ export const ClientPaymentReminderModal: React.FC = () => {
                   <div className="flex items-center justify-between text-[11px] text-stone-500 bg-emerald-50/50 border border-emerald-200/60 px-3 py-1.5 rounded-lg">
                     <span className="flex items-center gap-1">
                       <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                      Recipient: <strong>{contactPerson || currentCustomer.contactPerson}</strong> ({contactMobile || 'No WhatsApp'})
+                      Recipient: <strong>{contactPerson || currentCustomer.contactPerson}</strong> (
+                      {contactMobile || 'No WhatsApp'})
                     </span>
                     <span className="font-mono text-emerald-800 font-bold">wa.me ready</span>
                   </div>
 
                   {/* WhatsApp Bubble Preview */}
                   <div className="bg-[#EFEAE2] p-3 sm:p-4 rounded-xl border border-stone-300/80 shadow-inner font-sans text-xs">
-                    <div className="bg-white rounded-xl rounded-tl-xs p-3.5 shadow-sm border border-stone-200/80 space-y-2 whitespace-pre-wrap leading-relaxed text-stone-800">
+                    <div className="bg-white rounded-xl rounded-tl-xs p-3.5 shadow-sm border border-stone-200/80 space-y-2 whitespace-pre-wrap leading-relaxed text-stone-800 max-h-72 overflow-y-auto">
                       {whatsappMessage}
                       <div className="text-[10px] text-stone-400 text-right flex items-center justify-end gap-1 pt-1">
                         <span>{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
@@ -693,16 +1212,30 @@ export const ClientPaymentReminderModal: React.FC = () => {
                   <div className="bg-white p-3 rounded-xl border border-stone-200 space-y-2 text-xs">
                     <div className="flex items-center gap-2">
                       <span className="text-stone-400 font-bold w-14">To:</span>
-                      <span className="font-medium text-stone-900 bg-stone-100 px-2 py-0.5 rounded font-mono text-[11px]">
+                      <span className="font-medium text-stone-900 bg-stone-100 px-2 py-0.5 rounded font-mono text-[11px] truncate">
                         {emailData.recipientEmail || 'No Email configured for client'}
                       </span>
                     </div>
+                    {clientCcEmails && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-stone-400 font-bold w-14">CC:</span>
+                        <span className="font-medium text-stone-700 bg-stone-50 px-2 py-0.5 rounded font-mono text-[11px] truncate">
+                          {clientCcEmails}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2">
                       <span className="text-stone-400 font-bold w-14">Subject:</span>
-                      <span className="font-bold text-stone-900 truncate">
-                        {emailData.subject}
-                      </span>
+                      <span className="font-bold text-stone-900 truncate">{emailData.subject}</span>
                     </div>
+                    {documents.length > 0 && (
+                      <div className="flex items-center gap-2 text-emerald-800 bg-emerald-50 px-2 py-1 rounded text-[11px]">
+                        <Paperclip className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span className="font-medium truncate">
+                          {documents.length} document(s) attached: {documents.map((d) => d.name).join(', ')}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Email Body Preview */}
@@ -711,24 +1244,94 @@ export const ClientPaymentReminderModal: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {/* DOCUMENTS TAB PREVIEW */}
+              {activeChannel === 'documents' && (
+                <div className="space-y-3">
+                  <div className="bg-white p-3.5 rounded-xl border border-stone-200 text-xs space-y-2">
+                    <h3 className="font-bold text-stone-900 flex items-center gap-1.5">
+                      <Paperclip className="w-4 h-4 text-purple-600" />
+                      <span>Attached Documents Overview ({documents.length})</span>
+                    </h3>
+                    <p className="text-[11px] text-stone-500">
+                      These files are saved with this payment reminder and attached to email notifications and WhatsApp logs.
+                    </p>
+
+                    {documents.length === 0 ? (
+                      <p className="text-xs text-stone-400 italic py-4 text-center">
+                        No documents attached yet. Click "Upload Document / Bill" on the left to add.
+                      </p>
+                    ) : (
+                      <div className="space-y-2 pt-1">
+                        {documents.map((doc, idx) => (
+                          <div
+                            key={doc.id}
+                            className="p-2.5 rounded-lg border border-stone-200 bg-stone-50 flex items-center justify-between"
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <span className="text-[10px] font-bold text-stone-400">#{idx + 1}</span>
+                              <div className="truncate">
+                                <p className="font-bold text-stone-800 truncate text-xs">{doc.name}</p>
+                                <p className="text-[10px] text-stone-500">
+                                  {doc.size} • {new Date(doc.uploadedAt).toLocaleDateString()}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              {doc.dataUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewDocument(doc)}
+                                  className="px-2 py-1 rounded bg-white hover:bg-stone-100 border border-stone-200 text-stone-700 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Eye className="w-3 h-3" />
+                                  <span>View</span>
+                                </button>
+                              )}
+                              {doc.dataUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadDoc(doc)}
+                                  className="px-2 py-1 rounded bg-white hover:bg-stone-100 border border-stone-200 text-emerald-700 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Download className="w-3 h-3" />
+                                  <span>Download</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Action Buttons at bottom of Right Column */}
+            {/* SEND REMINDER ACTIONS SECTION (Directly addresses User Issue 2: "aur jab chahe tab send reminder pe click kar ke mail ya whasapp pe reminder send kar sake") */}
             <div className="pt-4 border-t border-stone-200 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
+                  <Send className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Send Reminder Now (अभी रिमाइंडर भेजें):</span>
+                </span>
+                <span className="text-[10px] text-stone-500">Auto-saves before dispatch</span>
+              </div>
+
               {activeChannel === 'whatsapp' ? (
                 <div className="space-y-2">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {/* 1-Click WhatsApp Web / App dispatch */}
-                    <a
-                      href={whatsappWebUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      type="button"
+                      onClick={handleSendViaWhatsAppWeb}
                       className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-all hover:scale-101 cursor-pointer"
                     >
                       <MessageSquare className="w-4 h-4" />
                       <span>Open WhatsApp Web</span>
                       <ExternalLink className="w-3 h-3 opacity-70" />
-                    </a>
+                    </button>
 
                     {/* Send via WhatsApp Business Cloud API */}
                     <button
@@ -743,27 +1346,27 @@ export const ClientPaymentReminderModal: React.FC = () => {
                   </div>
 
                   <p className="text-[11px] text-stone-500 text-center">
-                    Click <strong>Open WhatsApp Web</strong> to send directly from your desktop/phone WhatsApp, or <strong>Send Cloud API</strong> to dispatch via registered Meta Business API.
+                    Click <strong>Open WhatsApp Web</strong> to send directly from WhatsApp, or <strong>Send Cloud API</strong> to dispatch via Meta API.
                   </p>
                 </div>
-              ) : (
+              ) : activeChannel === 'email' ? (
                 <div className="space-y-2">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {/* 1-Click Open in Gmail Web */}
-                    <a
-                      href={gmailWebUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      type="button"
+                      onClick={handleSendViaGmail}
                       className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-sm transition-all hover:scale-101 cursor-pointer"
                     >
                       <Mail className="w-4 h-4" />
                       <span>Open in Gmail (1-Click)</span>
                       <ExternalLink className="w-3 h-3 opacity-70" />
-                    </a>
+                    </button>
 
                     {/* Open default mail client (mailto:) */}
                     <a
                       href={mailtoUrl}
+                      onClick={() => handleSaveReminder({ silent: true })}
                       className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
                     >
                       <Mail className="w-4 h-4" />
@@ -779,7 +1382,26 @@ export const ClientPaymentReminderModal: React.FC = () => {
                     className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-stone-900 hover:bg-black text-white font-bold text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
                   >
                     <Send className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>{isSending ? 'Queueing Email...' : 'Record & Send Email Reminder'}</span>
+                    <span>{isSending ? 'Queueing Email...' : 'Send Server Email with Attachments'}</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveChannel('whatsapp')}
+                    className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    <span>Send via WhatsApp</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveChannel('email')}
+                    className="py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>Send via Email</span>
                   </button>
                 </div>
               )}
@@ -788,21 +1410,92 @@ export const ClientPaymentReminderModal: React.FC = () => {
         </div>
 
         {/* Modal Footer */}
-        <div className="px-5 py-3 bg-stone-100 border-t border-stone-200 flex items-center justify-between shrink-0 text-xs">
+        <div className="px-5 py-3 bg-stone-100 border-t border-stone-200 flex items-center justify-between shrink-0 text-xs flex-wrap gap-2">
           <div className="text-stone-500 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Ready to send to: <strong>{currentCustomer.companyName}</strong> ({contactPerson || 'Authorized Contact'})</span>
+            <span>
+              Client: <strong>{customerName || currentCustomer.companyName}</strong> (
+              {contactPerson || 'Authorized Contact'}) • Due: <strong>{dueDate}</strong>
+            </span>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setIsPaymentReminderOpen(false)}
-            className="px-4 py-1.5 rounded-xl border border-stone-300 bg-white hover:bg-stone-50 text-stone-700 font-bold cursor-pointer transition-colors shadow-2xs"
-          >
-            Close
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleSaveReminder()}
+              disabled={isSaving}
+              className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold cursor-pointer transition-colors shadow-2xs flex items-center gap-1.5"
+            >
+              <Save className="w-3.5 h-3.5 text-amber-300" />
+              <span>Save Reminder</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsPaymentReminderOpen(false);
+                setEditingPaymentReminder(null);
+              }}
+              className="px-4 py-2 rounded-xl border border-stone-300 bg-white hover:bg-stone-50 text-stone-700 font-bold cursor-pointer transition-colors shadow-2xs"
+            >
+              Close
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Embedded Document Preview Modal */}
+      {previewDocument && (
+        <div className="fixed inset-0 z-60 bg-black/70 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-3xl w-full p-4 shadow-2xl flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between pb-3 border-b border-stone-200">
+              <div className="truncate pr-2">
+                <h3 className="font-bold text-stone-900 text-sm truncate">{previewDocument.name}</h3>
+                <p className="text-[10px] text-stone-500">{previewDocument.size}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleDownloadDoc(previewDocument)}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-xs flex items-center gap-1 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download</span>
+                </button>
+                <button
+                  onClick={() => setPreviewDocument(null)}
+                  className="p-1 rounded-lg text-stone-400 hover:text-stone-800 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-auto py-4 flex items-center justify-center">
+              {previewDocument.fileType === 'image' && previewDocument.dataUrl ? (
+                <img
+                  src={previewDocument.dataUrl}
+                  alt={previewDocument.name}
+                  className="max-h-[60vh] max-w-full rounded-lg object-contain shadow-sm"
+                />
+              ) : previewDocument.fileType === 'pdf' && previewDocument.dataUrl ? (
+                <iframe
+                  src={previewDocument.dataUrl}
+                  title={previewDocument.name}
+                  className="w-full h-[60vh] rounded-lg border border-stone-200"
+                />
+              ) : (
+                <div className="text-center p-8">
+                  <FileText className="w-16 h-16 text-stone-300 mx-auto mb-2" />
+                  <p className="text-stone-700 font-bold text-sm">{previewDocument.name}</p>
+                  <p className="text-stone-400 text-xs mt-1">
+                    Preview not directly supported in-line. Please click Download to view.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

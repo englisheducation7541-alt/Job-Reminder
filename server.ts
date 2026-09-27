@@ -553,20 +553,163 @@ app.post('/api/auth/google-login', (req, res) => {
   }
 });
 
+// Dedicated Client Payment Reminders CRUD Endpoints
+app.get('/api/payment-reminders', (req, res) => {
+  res.json({
+    success: true,
+    paymentReminders: serverState.data?.paymentReminders || [],
+    version: serverState.version,
+  });
+});
+
+app.post('/api/payment-reminders', (req, res) => {
+  try {
+    const reminder = req.body;
+    if (!reminder || !reminder.customerName) {
+      res.status(400).json({ success: false, message: 'Valid payment reminder details are required.' });
+      return;
+    }
+
+    const currentReminders: any[] = Array.isArray(serverState.data?.paymentReminders)
+      ? [...serverState.data.paymentReminders]
+      : [];
+
+    const existingIdx = currentReminders.findIndex((r) => r.id === reminder.id);
+    if (existingIdx >= 0) {
+      currentReminders[existingIdx] = {
+        ...currentReminders[existingIdx],
+        ...reminder,
+        updatedAt: new Date().toISOString(),
+      };
+    } else {
+      currentReminders.unshift({
+        ...reminder,
+        id: reminder.id || `pay_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        createdAt: reminder.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    serverState.data = {
+      ...serverState.data,
+      paymentReminders: currentReminders,
+    };
+    serverState.version = (serverState.version || 1) + 1;
+    serverState.lastUpdated = new Date().toISOString();
+    persistStateToDisk();
+
+    console.log(`[Payment Engine] Saved payment reminder #${reminder.invoiceNumber} for ${reminder.customerName}`);
+    res.json({
+      success: true,
+      paymentReminder: existingIdx >= 0 ? currentReminders[existingIdx] : currentReminders[0],
+      paymentReminders: currentReminders,
+      version: serverState.version,
+    });
+  } catch (err: any) {
+    console.error('[Payment Engine] Error saving payment reminder:', err);
+    res.status(500).json({ success: false, message: err.message || 'Failed to save payment reminder' });
+  }
+});
+
+app.put('/api/payment-reminders/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+    const currentReminders: any[] = Array.isArray(serverState.data?.paymentReminders)
+      ? [...serverState.data.paymentReminders]
+      : [];
+
+    const idx = currentReminders.findIndex((r) => r.id === id);
+    if (idx < 0) {
+      res.status(404).json({ success: false, message: 'Payment reminder not found.' });
+      return;
+    }
+
+    currentReminders[idx] = {
+      ...currentReminders[idx],
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+
+    serverState.data = {
+      ...serverState.data,
+      paymentReminders: currentReminders,
+    };
+    serverState.version = (serverState.version || 1) + 1;
+    serverState.lastUpdated = new Date().toISOString();
+    persistStateToDisk();
+
+    res.json({
+      success: true,
+      paymentReminder: currentReminders[idx],
+      paymentReminders: currentReminders,
+      version: serverState.version,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message || 'Failed to update reminder' });
+  }
+});
+
+app.delete('/api/payment-reminders/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const currentReminders: any[] = Array.isArray(serverState.data?.paymentReminders)
+      ? [...serverState.data.paymentReminders]
+      : [];
+
+    const updated = currentReminders.filter((r) => r.id !== id);
+    serverState.data = {
+      ...serverState.data,
+      paymentReminders: updated,
+    };
+    serverState.version = (serverState.version || 1) + 1;
+    serverState.lastUpdated = new Date().toISOString();
+    persistStateToDisk();
+
+    res.json({
+      success: true,
+      paymentReminders: updated,
+      version: serverState.version,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message || 'Failed to delete reminder' });
+  }
+});
+
 // Dedicated Client Payment Reminder Email Dispatch & Log Endpoint
 app.post('/api/reminders/send-email', (req, res) => {
   try {
-    const { to, subject, customerName, invoiceNumber, amount } = req.body;
+    const { to, cc, subject, body, customerName, invoiceNumber, amount, reminderId, documents } = req.body;
     if (!to || !subject) {
       res.status(400).json({ success: false, message: 'Recipient email and subject are required.' });
       return;
     }
-    console.log(`[Payment Engine] Dispatched Email reminder to ${to} for ${customerName || 'Customer'} (Inv: ${invoiceNumber || 'N/A'}, Amount: ₹${amount || 0})`);
+
+    // Update reminder metadata on server if reminderId is provided
+    if (reminderId && Array.isArray(serverState.data?.paymentReminders)) {
+      const idx = serverState.data.paymentReminders.findIndex((r: any) => r.id === reminderId);
+      if (idx >= 0) {
+        serverState.data.paymentReminders[idx] = {
+          ...serverState.data.paymentReminders[idx],
+          remindersCount: (serverState.data.paymentReminders[idx].remindersCount || 0) + 1,
+          lastReminderSentAt: new Date().toISOString(),
+          lastReminderChannel: 'email',
+          updatedAt: new Date().toISOString(),
+        };
+        serverState.version = (serverState.version || 1) + 1;
+        serverState.lastUpdated = new Date().toISOString();
+        persistStateToDisk();
+      }
+    }
+
+    const docCount = Array.isArray(documents) ? documents.length : 0;
+    console.log(`[Payment Engine] Dispatched Email reminder to ${to}${cc ? ` (CC: ${cc})` : ''} for ${customerName || 'Customer'} (Inv: ${invoiceNumber || 'N/A'}, Amount: ₹${amount || 0}, Docs: ${docCount})`);
+    
     res.json({
       success: true,
       messageId: `em_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       sentAt: new Date().toISOString(),
-      message: `Payment reminder email successfully queued and dispatched to ${to}.`,
+      message: `Payment reminder email successfully queued and dispatched to ${to}${cc ? ` (CC: ${cc})` : ''}.${docCount > 0 ? ` Attached ${docCount} document(s).` : ''}`,
     });
   } catch (err: any) {
     console.error('[Payment Engine] Send email error:', err);

@@ -324,6 +324,15 @@ export interface CompanySettings {
 
 export type PaymentReminderStatus = 'pending' | 'partially_paid' | 'overdue' | 'paid';
 
+export interface PaymentDocumentAttachment {
+  id: string;
+  name: string;
+  fileType: 'pdf' | 'image' | 'document' | 'other';
+  dataUrl?: string; // base64 or storage url
+  size?: string;
+  uploadedAt: string;
+}
+
 export interface ClientPaymentReminder {
   id: string;
   customerId: string;
@@ -345,6 +354,9 @@ export interface ClientPaymentReminder {
   emailSubject: string;
   emailDraft: string;
   whatsappDraft: string;
+
+  // Attached bills, invoices, POs, documents
+  documents?: PaymentDocumentAttachment[];
 
   // Reminders tracking
   remindersCount: number;
